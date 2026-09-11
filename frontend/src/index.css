@@ -1,0 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* Primary — deep indigo, the "intelligence" color */
+  --color-brand-50: #f1f0fd;
+  --color-brand-100: #e3e1fb;
+  --color-brand-200: #c3bff6;
+  --color-brand-300: #9d94ee;
+  --color-brand-400: #7a6de6;
+  --color-brand-500: #5b4bdb;
+  --color-brand-600: #4735c4;
+  --color-brand-700: #3a2b9e;
+  --color-brand-800: #2f2680;
+  --color-brand-900: #262066;
+
+  /* Slate neutrals */
+  --color-ink-50: #f6f7f9;
+  --color-ink-100: #eceef2;
+  --color-ink-200: #dde1e7;
+  --color-ink-300: #c3c9d2;
+  --color-ink-400: #99a1b0;
+  --color-ink-500: #71798c;
+  --color-ink-600: #545c70;
+  --color-ink-700: #3d4356;
+  --color-ink-800: #262a38;
+  --color-ink-900: #14161f;
+
+  /* Status */
+  --color-success-50: #eefaf3;
+  --color-success-500: #1f9d5c;
+  --color-success-600: #17824c;
+  --color-warning-50: #fdf6ea;
+  --color-warning-500: #c8830f;
+  --color-warning-600: #a66b0a;
+  --color-critical-50: #fdedec;
+  --color-critical-500: #d33f34;
+  --color-critical-600: #b12e26;
+  --color-info-50: #eaf3fd;
+  --color-info-500: #2872c9;
+  --color-info-600: #1f5ba3;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  background-color: #fafafb;
+  color: var(--color-ink-800);
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-ink-200); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-ink-300); }
+
+.data-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
