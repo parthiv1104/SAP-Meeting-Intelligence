@@ -12,7 +12,7 @@ import ProgressBar from '../components/ui/ProgressBar';
 import EmptyState from '../components/ui/EmptyState';
 import { SkeletonGrid } from '../components/ui/Skeleton';
 import { projectService } from '../services/projectService';
-import { industries, sapModules, teamMembers } from '../data/mockData';
+import { industries, sapModules, teamMembers } from '../config/constants';
 
 export default function Projects() {
   const [projects, setProjects] = useState(null);

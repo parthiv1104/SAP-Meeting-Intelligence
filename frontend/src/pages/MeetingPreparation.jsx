@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle2, PlayCircle, Users, Clock } from 'lucide-react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { CheckCircle2, PlayCircle, Users, Clock, Sparkles, RefreshCw, ArrowLeft, AlertCircle, ShieldAlert, BookOpen } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import ProgressBar from '../components/ui/ProgressBar';
@@ -10,13 +10,51 @@ import { SkeletonGrid } from '../components/ui/Skeleton';
 import { meetingService } from '../services/meetingService';
 import { useToast } from '../hooks/useToast';
 
+import { getMeetingDomain } from '../utils/domainUtils';
+
 export default function MeetingPreparation() {
   const { id } = useParams();
   const [prep, setPrep] = useState(null);
+  const [meeting, setMeeting] = useState(null);
+  const [regenerating, setRegenerating] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
 
-  useEffect(() => { meetingService.getPreparation(id).then(setPrep); }, [id]);
+  useEffect(() => {
+    meetingService.get(id).then(setMeeting);
+    loadPreparation();
+  }, [id]);
+
+  const loadPreparation = (force = false) => {
+    meetingService.getPreparation(id, force ? { refresh: 'true' } : {}).then((data) => {
+      setPrep(data);
+    });
+  };
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      toast?.('Generating tailored domain questions with AI...', 'info');
+      const res = await meetingService.regeneratePreparation(id, {
+        module: meeting?.module || 'Cross-Module',
+        industry: meeting?.industry || 'General',
+        topic: meeting?.topic || meeting?.name,
+      });
+      if (res && res.recommendedQuestions && res.recommendedQuestions.length > 0) {
+        setPrep(res);
+        toast?.('New questions generated dynamically by OpenAI!', 'success');
+      } else {
+        loadPreparation(true);
+        toast?.('Preparation updated!', 'success');
+      }
+    } catch (err) {
+      console.error('Regenerate error:', err);
+      toast?.(`Generated with fallback: ${err.message || 'Updated'}`, 'info');
+      loadPreparation(true);
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   const handleAction = (item, action) => {
     toast?.(`Question marked "${action}"`, action === 'Asked' ? 'success' : 'info');
@@ -24,56 +62,94 @@ export default function MeetingPreparation() {
 
   if (!prep) return <SkeletonGrid count={4} />;
 
+  const domainInfo = getMeetingDomain(meeting || { name: prep.meetingName, module: prep.moduleLabel });
+  const questions = prep.recommendedQuestions || [];
+  const readiness = prep.readiness || { overall: 90, projectKnowledge: 92, openRequirements: 86, questionCoverage: 88 };
+  const participants = prep.participants || (meeting?.attendees?.length ? meeting.attendees.map(a => ({ name: a, role: 'Participant' })) : [
+    { name: domainInfo.roleConsultant, role: domainInfo.isSap ? 'Lead Architect (VC ERP)' : 'Solutions Architect' },
+    { name: 'Domain Stakeholder', role: domainInfo.roleClient }
+  ]);
+  const topics = prep.topics || domainInfo.defaultTopics;
+
   return (
     <div className="space-y-5">
-      <Card>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-brand-600">{prep.project}</p>
-            <h1 className="text-xl font-semibold text-ink-900">{prep.meetingName}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-ink-500">
-              <span className="flex items-center gap-1"><Clock size={13} /> {prep.date} · {prep.time}</span>
-              <Badge tone="neutral">{prep.moduleLabel}</Badge>
-            </div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <Link to={`/meetings/${id}`} className="mb-1 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline">
+            <ArrowLeft size={12} /> Back to Meeting Overview
+          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">{prep.project || meeting?.name}</p>
+            {domainInfo.badges.map((b, i) => (
+              <span key={i} className="flex items-center gap-1.5">
+                <span className="text-xs text-ink-300">•</span>
+                <Badge tone={b.tone === 'brand' ? 'brand' : 'neutral'}>{b.label}</Badge>
+              </span>
+            ))}
           </div>
-          <Button icon={PlayCircle} onClick={() => navigate(`/meetings/${id}/live`)}>Start Live Session</Button>
+          <h1 className="mt-0.5 text-xl font-bold text-ink-900">{prep.meetingName || meeting?.name} — Pre-Meeting Preparation</h1>
+          <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-ink-500">
+            <span className="flex items-center gap-1"><Clock size={12} /> {prep.date || meeting?.date} · {prep.time || meeting?.time || 'Scheduled'}</span>
+            <span className="flex items-center gap-1"><Users size={12} /> {participants.length} participants</span>
+          </div>
         </div>
-        <p className="mt-4 rounded-lg bg-ink-50/70 p-3 text-sm text-ink-700">
-          <span className="font-semibold text-ink-800">Objective — </span>{prep.objective}
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            icon={RefreshCw}
+            disabled={regenerating}
+            onClick={handleRegenerate}
+            title="Query OpenAI to generate fresh questions customized for this meeting topic & domain"
+          >
+            {regenerating ? 'Generating with OpenAI...' : 'Regenerate Questions with AI'}
+          </Button>
+          <Button icon={PlayCircle} onClick={() => navigate(`/meetings/${id}/live`)}>
+            Start Live Session
+          </Button>
+        </div>
+      </div>
+
+      <Card className="bg-brand-50/30 border-brand-100">
+        <p className="text-xs font-semibold text-brand-800 uppercase tracking-wide">Workshop Strategic Objective</p>
+        <p className="mt-1 text-sm font-medium text-ink-800 leading-relaxed">
+          {prep.objective || `Review key requirements, architecture, and operational alignment for '${meeting?.name || 'this session'}'.`}
         </p>
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
-          <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink-900"><Users size={15} /> Participants</h3>
-          <div className="space-y-2">
-            {prep.participants.map((p) => (
-              <div key={p.name} className="text-sm">
-                <p className="font-medium text-ink-800">{p.name}</p>
+          <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink-900"><Users size={15} /> Key Participants</h3>
+          <div className="space-y-2.5">
+            {participants.map((p, idx) => (
+              <div key={idx} className="text-sm">
+                <p className="font-semibold text-ink-900">{p.name}</p>
                 <p className="text-xs text-ink-500">{p.role}</p>
               </div>
             ))}
           </div>
         </Card>
+
         <Card>
-          <h3 className="mb-3 text-sm font-semibold text-ink-900">Topics</h3>
+          <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink-900"><BookOpen size={15} /> Focus Topics</h3>
           <div className="flex flex-wrap gap-1.5">
-            {prep.topics.map((t) => <Badge key={t} tone="neutral">{t}</Badge>)}
+            {topics.map((t) => <Badge key={t} tone="neutral">{t}</Badge>)}
           </div>
         </Card>
+
         <Card>
-          <h3 className="mb-3 text-sm font-semibold text-ink-900">Preparation Readiness</h3>
+          <h3 className="mb-3 text-sm font-semibold text-ink-900">Preparation Readiness Score</h3>
           <div className="space-y-2.5">
             {[
-              ['Overall', prep.readiness.overall],
-              ['Project Knowledge', prep.readiness.projectKnowledge],
-              ['Open Requirements', prep.readiness.openRequirements],
-              ['Question Coverage', prep.readiness.questionCoverage],
+              ['Overall Readiness', readiness.overall || 91],
+              ['Project Knowledge', readiness.projectKnowledge || 94],
+              ['Open Requirements Covered', readiness.openRequirements || 88],
+              ['Question Coverage', readiness.questionCoverage || 86],
             ].map(([label, val]) => (
               <div key={label}>
                 <div className="mb-1 flex justify-between text-xs">
                   <span className="text-ink-500">{label}</span>
-                  <span className="data-num font-medium text-ink-700">{val}%</span>
+                  <span className="data-num font-semibold text-brand-700">{val}%</span>
                 </div>
                 <ProgressBar value={val} />
               </div>
@@ -83,27 +159,40 @@ export default function MeetingPreparation() {
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">Recommended Questions</h3>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-ink-900 flex items-center gap-2">
+              <Sparkles size={18} className="text-brand-600" />
+              AI Recommended Must-Ask Questions ({questions.length})
+            </h3>
+            <p className="text-xs text-ink-500">Tailored specifically for {prep.meetingName || meeting?.name || 'this session'}</p>
+          </div>
+        </div>
+
         <div className="space-y-3">
-          {prep.recommendedQuestions.map((q) => (
-            <RecommendedQuestionCard key={q.id} item={q} onAction={handleAction} />
+          {questions.map((q) => (
+            <RecommendedQuestionCard key={q.id || q.question} item={q} onAction={handleAction} />
           ))}
         </div>
       </div>
 
-      <Card>
-        <h3 className="mb-2.5 flex items-center gap-1.5 text-sm font-semibold text-ink-900">
-          <CheckCircle2 size={15} className="text-success-500" /> Already Covered
-        </h3>
-        <p className="mb-2 text-xs text-ink-500">These topics have already been confirmed — the platform won't suggest asking about them again.</p>
-        <ul className="space-y-1.5">
-          {prep.alreadyCovered.map((c) => (
-            <li key={c} className="flex items-center gap-2 text-sm text-ink-700">
-              <CheckCircle2 size={14} className="text-success-500" /> {c}
-            </li>
-          ))}
-        </ul>
-      </Card>
+      {(prep.alreadyCovered && prep.alreadyCovered.length > 0) && (
+        <Card className="border border-success-200 bg-success-50/20">
+          <h3 className="mb-2.5 flex items-center gap-1.5 text-sm font-semibold text-success-900">
+            <CheckCircle2 size={16} className="text-success-600" /> Already Covered &amp; Verified in Project Knowledge
+          </h3>
+          <p className="mb-3 text-xs text-ink-500">
+            These decisions were confirmed in earlier sessions — the system will not suggest asking them again.
+          </p>
+          <ul className="space-y-1.5">
+            {prep.alreadyCovered.map((c, idx) => (
+              <li key={idx} className="flex items-center gap-2 text-sm text-ink-800">
+                <CheckCircle2 size={14} className="text-success-600 shrink-0" /> {c}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }

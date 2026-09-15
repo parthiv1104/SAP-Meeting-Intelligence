@@ -3,8 +3,7 @@ import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import Avatar from '../components/ui/Avatar';
-import { teamMembers, organization } from '../data/mockData';
+import { teamMembers, organization } from '../config/constants';
 
 const SECTIONS = [
   'Organization', 'Users', 'Roles & Permissions', 'AI Settings',

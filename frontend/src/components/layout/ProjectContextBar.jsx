@@ -7,8 +7,6 @@ const TABS = [
   { to: 'meetings', label: 'Meetings' },
   { to: 'questions', label: 'Questions' },
   { to: 'knowledge', label: 'Knowledge' },
-  { to: 'requirements', label: 'Requirements' },
-  { to: 'decisions', label: 'Decisions' },
   { to: 'documents', label: 'Documents' },
   { to: 'team', label: 'Team' },
 ];

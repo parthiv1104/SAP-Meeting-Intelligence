@@ -1,11 +1,21 @@
-import { X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, Bell } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import Badge from '../ui/Badge';
 import EmptyState from '../ui/EmptyState';
-import { Bell } from 'lucide-react';
-import { notifications } from '../../data/mockData';
+import { notificationService } from '../../services/notificationService';
 
 export default function NotificationDrawer({ open, onClose }) {
+  const [notifications, setNotifications] = useState([]);
+
+  useEffect(() => {
+    if (open) {
+      notificationService.list().then(setNotifications);
+    }
+  }, [open]);
+
   if (!open) return null;
+
   return (
     <div className="fixed inset-0 z-50" onClick={onClose}>
       <div className="absolute inset-0 bg-ink-900/30" />
@@ -25,22 +35,26 @@ export default function NotificationDrawer({ open, onClose }) {
           ) : (
             <div className="space-y-1">
               {notifications.map((n) => (
-                <div
+                <Link
                   key={n.id}
-                  className={`flex items-start gap-3 rounded-lg px-3 py-3 ${n.read ? '' : 'bg-brand-50/50'}`}
+                  to={n.link || '#'}
+                  onClick={onClose}
+                  className={`block rounded-lg px-3 py-3 transition hover:bg-ink-50 ${n.read ? '' : 'bg-brand-50/50'}`}
                 >
-                  <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${n.read ? 'bg-ink-200' : 'bg-brand-500'}`} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-ink-800">{n.title}</p>
-                      <Badge tone={n.priority === 'Critical' ? 'critical' : n.priority === 'High' ? 'warning' : 'neutral'}>
-                        {n.priority}
-                      </Badge>
+                  <div className="flex items-start gap-3">
+                    <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${n.read ? 'bg-ink-200' : 'bg-brand-500'}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-ink-800">{n.title}</p>
+                        <Badge tone={n.priority === 'Critical' ? 'critical' : n.priority === 'High' ? 'warning' : 'neutral'}>
+                          {n.priority || 'Info'}
+                        </Badge>
+                      </div>
+                      <p className="mt-0.5 text-xs text-ink-500">{n.body || n.detail}</p>
+                      <p className="mt-1 text-[11px] text-ink-400">{n.date || n.time || 'Recent'}</p>
                     </div>
-                    <p className="mt-0.5 text-xs text-ink-500">{n.detail}</p>
-                    <p className="mt-1 text-[11px] text-ink-400">{n.time}</p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

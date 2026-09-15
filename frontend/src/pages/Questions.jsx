@@ -10,16 +10,16 @@ import EmptyState from '../components/ui/EmptyState';
 import Button from '../components/ui/Button';
 import { SkeletonGrid } from '../components/ui/Skeleton';
 import { questionService } from '../services/questionService';
-import { sapModules } from '../data/mockData';
 
-const STATUSES = ['All Statuses', 'New', 'Suggested', 'Asked', 'Answered', 'Partially Answered', 'Follow-up Required', 'Not Applicable', 'Closed'];
+const STATUSES = ['All Statuses', 'Open', 'Asked', 'Answered', 'Missed', 'Suggested'];
 const PRIORITIES = ['All Priorities', 'Critical', 'High', 'Medium', 'Low'];
+const MODULES = ['All Scopes', 'AI & Data', 'MM', 'FI', 'SD', 'PP', 'QM', 'Cross-Module'];
 
 export default function Questions() {
   const { id: projectId } = useParams();
   const [questions, setQuestions] = useState(null);
   const [status, setStatus] = useState('All Statuses');
-  const [modFilter, setModFilter] = useState('All Modules');
+  const [modFilter, setModFilter] = useState('All Scopes');
   const [priority, setPriority] = useState('All Priorities');
   const [query, setQuery] = useState('');
 
@@ -28,11 +28,17 @@ export default function Questions() {
   const filtered = useMemo(() => {
     if (!questions) return [];
     return questions.filter((q) => {
-      if (projectId && q.projectId !== projectId) return false;
-      if (query && !q.question.toLowerCase().includes(query.toLowerCase())) return false;
-      if (status !== 'All Statuses' && q.status !== status) return false;
-      if (modFilter !== 'All Modules' && q.module !== modFilter) return false;
-      if (priority !== 'All Priorities' && q.priority !== priority) return false;
+      const qText = q.text || q.question || '';
+      const qTopic = q.topic || '';
+      const qPriority = q.importance || q.priority || 'High';
+      const qStatus = q.status || 'Open';
+      const qMod = q.module || 'Cross-Module';
+
+      if (projectId && q.projectId && q.projectId !== projectId) return false;
+      if (query && !qText.toLowerCase().includes(query.toLowerCase()) && !qTopic.toLowerCase().includes(query.toLowerCase())) return false;
+      if (status !== 'All Statuses' && qStatus.toLowerCase() !== status.toLowerCase()) return false;
+      if (modFilter !== 'All Scopes' && qMod.toUpperCase() !== modFilter.toUpperCase()) return false;
+      if (priority !== 'All Priorities' && qPriority.toLowerCase() !== priority.toLowerCase()) return false;
       return true;
     });
   }, [questions, status, modFilter, priority, query, projectId]);
@@ -42,7 +48,7 @@ export default function Questions() {
       {!projectId && (
         <PageHeader
           title="Question Intelligence"
-          description="Every question your teams have asked, need to ask, or are still tracking answers for."
+          description="Every question your teams have asked, need to ask, or are still tracking answers for across live sessions."
           actions={
             <div className="flex gap-2">
               <Button as={Link} to="/questions/faq" variant="secondary">Frequently Asked</Button>
@@ -55,28 +61,37 @@ export default function Questions() {
       <div className="flex flex-wrap items-center gap-2.5">
         <SearchInput value={query} onChange={setQuery} placeholder="Search questions..." className="w-full max-w-xs" />
         <Dropdown value={status} onChange={setStatus} options={STATUSES} />
-        <Dropdown value={modFilter} onChange={setModFilter} options={['All Modules', ...sapModules]} />
+        <Dropdown value={modFilter} onChange={setModFilter} options={MODULES} />
         <Dropdown value={priority} onChange={setPriority} options={PRIORITIES} />
       </div>
 
       {!questions ? (
         <SkeletonGrid />
       ) : filtered.length === 0 ? (
-        <EmptyState icon={CircleHelp} title="No questions match these filters" description="Adjust your filters or check back after the next meeting is analyzed." />
+        <EmptyState icon={CircleHelp} title="No questions match these filters" description="Adjust your filters or generate new questions in meeting preparation." />
       ) : (
-        <Table columns={['Question', 'Module', 'Topic', 'Owner', 'Priority', 'Status', 'Frequency', 'Last Asked']}>
-          {filtered.map((q) => (
-            <tr key={q.id} className="hover:bg-ink-50/60">
+        <Table columns={['Question', 'Domain / Scope', 'Topic', 'Meeting Context', 'Priority', 'Status', 'Confidence']}>
+          {filtered.map((q, idx) => (
+            <tr key={q.id || idx} className="hover:bg-ink-50/60">
               <td className="px-4 py-3 max-w-sm">
-                <Link to={`/questions/${q.id}`} className="font-medium text-brand-700 hover:underline">{q.question}</Link>
+                <Link to={`/questions/${q.id}`} className="font-medium text-brand-700 hover:underline">
+                  {q.text || q.question}
+                </Link>
               </td>
-              <td className="px-4 py-3"><Badge tone="neutral">{q.module}</Badge></td>
-              <td className="px-4 py-3 text-ink-600">{q.topic}</td>
-              <td className="px-4 py-3 text-ink-600">{q.owner}</td>
-              <td className="px-4 py-3"><Badge>{q.priority}</Badge></td>
-              <td className="px-4 py-3"><Badge>{q.status}</Badge></td>
-              <td className="px-4 py-3 data-num text-ink-600">{q.frequency}</td>
-              <td className="px-4 py-3 text-ink-600">{q.lastAsked}</td>
+              <td className="px-4 py-3"><Badge tone="neutral">{q.module || 'General'}</Badge></td>
+              <td className="px-4 py-3 text-ink-600">{q.topic || 'Core Scope'}</td>
+              <td className="px-4 py-3 text-ink-600">{q.meetingName || 'Meeting Workspace'}</td>
+              <td className="px-4 py-3">
+                <Badge tone={(q.importance === 'Critical' || q.priority === 'Critical') ? 'critical' : 'neutral'}>
+                  {q.importance || q.priority || 'High'}
+                </Badge>
+              </td>
+              <td className="px-4 py-3">
+                <Badge tone={q.status === 'Answered' ? 'positive' : q.status === 'Missed' ? 'critical' : 'brand'}>
+                  {q.status || 'Open'}
+                </Badge>
+              </td>
+              <td className="px-4 py-3 data-num text-ink-600">{q.confidence || 92}%</td>
             </tr>
           ))}
         </Table>

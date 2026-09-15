@@ -11,11 +11,13 @@ import { Link } from 'react-router-dom';
 import { meetingService } from '../services/meetingService';
 import { projectService } from '../services/projectService';
 import { apiFetch } from '../services/apiClient';
+import { useAuth } from '../context/AuthContext';
 
 const FILTERS = ['All', 'Upcoming', 'Completed'];
 
 export default function Meetings() {
   const { id: projectId } = useParams();
+  const { user } = useAuth();
   const [meetings, setMeetings] = useState(null);
   const [projects, setProjects] = useState([]);
   const [filter, setFilter] = useState('All');
@@ -26,21 +28,24 @@ export default function Meetings() {
   useEffect(() => {
     fetchLiveTeamsMeetings();
     projectService.list().then(setProjects);
-  }, []);
+  }, [user?.email]);
 
-  // 2. FETCH REAL-TIME TEAMS MEETINGS:
+  // 2. FETCH REAL-TIME TEAMS MEETINGS FOR LOGGED-IN USER:
   const fetchLiveTeamsMeetings = async () => {
     setLoadingTeams(true);
     try {
-      const res = await apiFetch('/meetings/live-teams/');
-      if (res.connected && res.meetings.length > 0) {
+      const emailParam = user?.email ? `?email=${encodeURIComponent(user.email)}` : '';
+      const res = await apiFetch(`/meetings/live-teams/${emailParam}`);
+      if (res?.connected && Array.isArray(res.meetings) && res.meetings.length > 0) {
         setMeetings(res.meetings);
       } else {
-        meetingService.list().then(setMeetings);
+        const listData = await meetingService.list(user?.email ? { user_email: user.email } : {});
+        setMeetings(listData);
       }
     } catch (err) {
       console.error('Failed to fetch live Teams meetings', err);
-      meetingService.list().then(setMeetings);
+      const listData = await meetingService.list(user?.email ? { user_email: user.email } : {});
+      setMeetings(listData);
     } finally {
       setLoadingTeams(false);
     }

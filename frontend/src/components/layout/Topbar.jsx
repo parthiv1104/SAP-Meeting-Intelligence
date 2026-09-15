@@ -4,12 +4,17 @@ import { Bell, Sparkles } from 'lucide-react';
 import SearchInput from '../ui/SearchInput';
 import GlobalSearchResults from './GlobalSearchResults';
 import NotificationDrawer from './NotificationDrawer';
-import { currentUser } from '../../data/mockData';
+import Avatar from '../ui/Avatar';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Topbar({ projectContext }) {
   const [query, setQuery] = useState('');
   const [notifOpen, setNotifOpen] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const displayName = user?.name || user?.username || 'Consultant';
+  const displayRole = user?.role || 'Project Lead';
 
   return (
     <header className="sticky top-0 z-30 border-b border-ink-100 bg-white/90 backdrop-blur">
@@ -46,10 +51,11 @@ export default function Topbar({ projectContext }) {
             <Bell size={18} />
             <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-critical-500 ring-2 ring-white" />
           </button>
-          <div className="hidden items-center gap-2 border-l border-ink-100 pl-3 sm:flex">
+          <div className="hidden items-center gap-2.5 border-l border-ink-100 pl-3 sm:flex">
+            <Avatar name={displayName} size={28} />
             <div className="text-right leading-tight">
-              <p className="text-sm font-medium text-ink-800">{currentUser.name}</p>
-              <p className="text-xs text-ink-400">{currentUser.role}</p>
+              <p className="text-sm font-medium text-ink-800">{displayName}</p>
+              <p className="text-xs text-ink-400">{displayRole}</p>
             </div>
           </div>
         </div>

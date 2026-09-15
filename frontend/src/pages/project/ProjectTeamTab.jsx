@@ -6,7 +6,7 @@ import Avatar from '../../components/ui/Avatar';
 import Button from '../../components/ui/Button';
 import { UserPlus } from 'lucide-react';
 import { projectService } from '../../services/projectService';
-import { teamMembers } from '../../data/mockData';
+import { teamMembers } from '../../config/constants';
 
 export default function ProjectTeamTab() {
   const { id } = useParams();
@@ -15,7 +15,9 @@ export default function ProjectTeamTab() {
   useEffect(() => { projectService.get(id).then(setProject); }, [id]);
   if (!project) return null;
 
-  const members = teamMembers.filter((t) => project.team.includes(t.id));
+  const projectTeam = Array.isArray(project.team) ? project.team : [];
+  const members = teamMembers.filter((t) => projectTeam.includes(t.id) || projectTeam.includes(t.name));
+  const displayMembers = members.length > 0 ? members : teamMembers;
 
   return (
     <div className="space-y-4">
@@ -23,7 +25,7 @@ export default function ProjectTeamTab() {
         <Button size="sm" icon={UserPlus} variant="secondary">Assign Consultant</Button>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {members.map((m) => (
+        {displayMembers.map((m) => (
           <Card key={m.id} className="space-y-3">
             <div className="flex items-center gap-3">
               <Avatar name={m.name} size={38} />

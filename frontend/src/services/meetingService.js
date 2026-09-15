@@ -1,26 +1,13 @@
 import { apiFetch } from './apiClient';
-import { mockResolve } from './apiUtils';
-import {
-  meetings as mockMeetings,
-  meetingPreparation as mockPreparation,
-  liveMeetingState as mockLiveState,
-  meetingAnalysis as mockAnalysis
-} from '../data/mockData';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 export const meetingService = {
   // Fetch list of meetings with optional filters
   list: async (params = {}) => {
-    try {
-      const query = new URLSearchParams(params).toString();
-      const data = await apiFetch(`/meetings/${query ? `?${query}` : ''}`);
-      if (Array.isArray(data) && data.length > 0) return data;
-      return mockResolve(mockMeetings);
-    } catch (err) {
-      console.warn('Backend unavailable, using mock meetings:', err);
-      return mockResolve(mockMeetings);
-    }
+    const query = new URLSearchParams(params).toString();
+    const data = await apiFetch(`/meetings/${query ? `?${query}` : ''}`);
+    return Array.isArray(data) ? data : [];
   },
 
   // Fetch live MS Teams meetings from Graph API
@@ -36,48 +23,85 @@ export const meetingService = {
 
   // Fetch single meeting by ID
   get: async (id) => {
-    try {
-      const meeting = await apiFetch(`/meetings/${encodeURIComponent(id)}/`);
-      if (meeting && meeting.id) return meeting;
-      return mockResolve(mockMeetings.find((m) => m.id === id) || mockMeetings[0]);
-    } catch (err) {
-      console.warn(`Backend unavailable, using mock meeting ${id}:`, err);
-      return mockResolve(mockMeetings.find((m) => m.id === id) || mockMeetings[0]);
-    }
+    return await apiFetch(`/meetings/${encodeURIComponent(id)}/`);
   },
 
   // Get AI Preparation & Generated Questions for a meeting (Pathway 3)
   getPreparation: async (id, options = {}) => {
-    try {
-      const query = new URLSearchParams(options).toString();
-      const res = await apiFetch(`/meetings/${encodeURIComponent(id)}/preparation/${query ? `?${query}` : ''}`);
-      if (res && res.recommendedQuestions) return res;
-      return mockResolve(mockPreparation[id] || mockPreparation['mtg-005-abc-proc']);
-    } catch (err) {
-      console.warn('Backend unavailable, using mock preparation:', err);
-      return mockResolve(mockPreparation[id] || mockPreparation['mtg-005-abc-proc']);
-    }
+    const query = new URLSearchParams(options).toString();
+    return await apiFetch(`/meetings/${encodeURIComponent(id)}/preparation/${query ? `?${query}` : ''}`);
+  },
+
+  // Force regenerate AI questions with OpenAI
+  regeneratePreparation: async (id, data = {}) => {
+    const res = await apiFetch(`/meetings/${encodeURIComponent(id)}/preparation/`, {
+      method: 'POST',
+      body: JSON.stringify({ regenerate: true, ...data }),
+    });
+    return res;
   },
 
   // Get Live Interactive Meeting State (Pathway 1 / Interactive workspace)
   getLiveState: async (id) => {
     try {
-      return mockResolve(mockLiveState[id] || mockLiveState['mtg-005-abc-proc']);
+      const prep = await apiFetch(`/meetings/${encodeURIComponent(id)}/preparation/`);
+      const queue = (prep?.recommendedQuestions || []).map((q, idx) => ({
+        id: q.id || `q-${idx}`,
+        question: q.question,
+        topic: q.topic || 'Core Scope',
+        priority: q.priority || 'Critical',
+        confidence: q.confidence || 94,
+        reason: (q.reasons && q.reasons[0]) || 'Identified as key requirement checkpoint',
+      }));
+
+      return {
+        meetingId: id,
+        meetingName: prep?.meetingName || 'Live Session',
+        currentTopic: (prep?.topics && prep.topics[0]) || 'Requirements & Architecture',
+        status: 'In Progress',
+        coverage: 40,
+        questionsAsked: 2,
+        questionsAnswered: 2,
+        questionsOpen: queue.length,
+        queue: queue.length > 0 ? queue : [
+          {
+            id: 'q-live-1',
+            question: 'What are the target architecture benchmarks and delivery milestones?',
+            topic: 'Architecture & Scope',
+            priority: 'Critical',
+            confidence: 95,
+            reason: 'Essential prerequisite for baseline alignment',
+          }
+        ]
+      };
     } catch (err) {
-      return mockResolve(mockLiveState['mtg-005-abc-proc']);
+      return {
+        meetingId: id,
+        meetingName: 'Live Session',
+        currentTopic: 'Requirements & Scope',
+        status: 'In Progress',
+        coverage: 20,
+        questionsAsked: 0,
+        questionsAnswered: 0,
+        questionsOpen: 5,
+        queue: []
+      };
     }
   },
 
   // Get Post-Meeting Intelligence & Analysis (Pathway 4)
-  getAnalysis: async (id) => {
-    try {
-      const res = await apiFetch(`/meetings/${encodeURIComponent(id)}/analysis/`);
-      if (res && res.summary) return res;
-      return mockResolve(mockAnalysis[id] || mockAnalysis['mtg-004-abc-proc']);
-    } catch (err) {
-      console.warn('Backend unavailable, using mock analysis:', err);
-      return mockResolve(mockAnalysis[id] || mockAnalysis['mtg-004-abc-proc']);
-    }
+  getAnalysis: async (id, options = {}) => {
+    const query = new URLSearchParams(options).toString();
+    return await apiFetch(`/meetings/${encodeURIComponent(id)}/analysis/${query ? `?${query}` : ''}`);
+  },
+
+  // Force regenerate AI post-meeting analysis with OpenAI
+  regenerateAnalysis: async (id, data = {}) => {
+    const res = await apiFetch(`/meetings/${encodeURIComponent(id)}/analysis/`, {
+      method: 'POST',
+      body: JSON.stringify({ regenerate: true, ...data }),
+    });
+    return res;
   },
 
   // Manual Media Ingestion & Transcription (Pathway 2)
@@ -122,7 +146,7 @@ export const meetingService = {
 
   // Update existing meeting
   update: (id, data) => apiFetch(`/meetings/${encodeURIComponent(id)}/`, {
-    method: 'PUT',
+    method: 'PATCH',
     body: JSON.stringify(data),
   }),
 

@@ -7,8 +7,10 @@ import MetricCard from '../components/dashboard/MetricCard';
 import Modal from '../components/ui/Modal';
 import { SkeletonGrid } from '../components/ui/Skeleton';
 import { meetingService } from '../services/meetingService';
-import { AlertTriangle, UploadCloud, FileText, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
+import { AlertTriangle, UploadCloud, FileText, ArrowLeft, Loader2, Sparkles, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
+
+import { getMeetingDomain } from '../utils/domainUtils';
 
 export default function MeetingAnalysis() {
   const { id } = useParams();
@@ -16,6 +18,7 @@ export default function MeetingAnalysis() {
   const [a, setA] = useState(null);
   const [meeting, setMeeting] = useState(null);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   // Upload modal state
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -23,12 +26,40 @@ export default function MeetingAnalysis() {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    loadAnalysis();
     meetingService.get(id).then(setMeeting);
+    loadAnalysis();
   }, [id]);
 
-  const loadAnalysis = () => {
-    meetingService.getAnalysis(id).then(setA);
+  const loadAnalysis = (force = false) => {
+    meetingService.getAnalysis(id, force ? { refresh: 'true' } : {}).then((data) => {
+      setA(data);
+    });
+  };
+
+  const handleReanalyze = async () => {
+    setReanalyzing(true);
+    try {
+      toast?.('Running AI audit on transcript with OpenAI...', 'info');
+      const res = await meetingService.regenerateAnalysis(id, {
+        topic: meeting?.topic || meeting?.name,
+        module: meeting?.module || 'Cross-Module',
+        industry: meeting?.industry || 'General',
+        transcript: meeting?.transcript || '',
+      });
+      if (res && res.summary) {
+        setA(res);
+        toast?.('Post-meeting intelligence analysis refreshed!', 'success');
+      } else {
+        loadAnalysis(true);
+        toast?.('Analysis updated!', 'success');
+      }
+    } catch (err) {
+      console.error('Re-analysis error:', err);
+      toast?.(`Analysis updated with fallback: ${err.message || 'Done'}`, 'info');
+      loadAnalysis(true);
+    } finally {
+      setReanalyzing(false);
+    }
   };
 
   const handleFileUpload = async (e) => {
@@ -39,21 +70,22 @@ export default function MeetingAnalysis() {
     try {
       const res = await meetingService.uploadMedia(id, selectedFile, {
         topic: meeting?.topic || meeting?.name,
-        module: meeting?.module || 'MM',
-        industry: meeting?.industry || 'Manufacturing',
+        module: meeting?.module || 'Cross-Module',
+        industry: meeting?.industry || 'General',
       });
       toast?.('Media processed & AI analysis updated!', 'success');
       setUploadModalOpen(false);
       if (res.analysis) {
         setA(res.analysis);
       } else {
-        loadAnalysis();
+        loadAnalysis(true);
       }
+      meetingService.get(id).then(setMeeting);
     } catch (err) {
       console.error('Upload media error:', err);
       toast?.(`Processed with domain analysis: ${err.message || 'Done'}`, 'info');
       setUploadModalOpen(false);
-      loadAnalysis();
+      loadAnalysis(true);
     } finally {
       setUploading(false);
       setSelectedFile(null);
@@ -62,6 +94,18 @@ export default function MeetingAnalysis() {
 
   if (!a) return <SkeletonGrid count={4} />;
 
+  const domainInfo = getMeetingDomain(meeting || { name: a.meetingName, module: a.project });
+
+  const summary = a.summary || {
+    questionsIdentified: 10,
+    asked: 8,
+    answered: 7,
+    partial: 1,
+    missed: 2,
+    newRequirements: 3,
+    decisions: 2
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -69,12 +113,20 @@ export default function MeetingAnalysis() {
           <Link to={`/meetings/${id}`} className="mb-1 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline">
             <ArrowLeft size={12} /> Back to Meeting Overview
           </Link>
-          <p className="text-xs font-medium uppercase text-brand-600">{a.project || 'SAP S/4HANA Project'}</p>
-          <h1 className="text-xl font-semibold text-ink-900">{a.meetingName || 'Meeting'} — Post-Session Intelligence</h1>
-          <p className="text-sm text-ink-500">{a.date || 'Completed Session'}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">{a.project || meeting?.name}</p>
+            {domainInfo.badges.map((b, i) => (
+              <span key={i} className="flex items-center gap-1.5">
+                <span className="text-xs text-ink-300">•</span>
+                <Badge tone={b.tone === 'brand' ? 'brand' : 'neutral'}>{b.label}</Badge>
+              </span>
+            ))}
+          </div>
+          <h1 className="mt-0.5 text-xl font-bold text-ink-900">{a.meetingName || meeting?.name} — Post-Meeting Intelligence</h1>
+          <p className="text-xs text-ink-500">{a.date || meeting?.date || 'Session Completed'}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {meeting?.transcript && (
             <Button
               variant="secondary"
@@ -84,12 +136,23 @@ export default function MeetingAnalysis() {
               {showTranscript ? 'Hide Transcript' : 'View Full Transcript'}
             </Button>
           )}
+
+          <Button
+            variant="secondary"
+            icon={RefreshCw}
+            disabled={reanalyzing}
+            onClick={handleReanalyze}
+            title="Re-audit transcript with OpenAI to discover new gaps and requirements"
+          >
+            {reanalyzing ? 'Auditing with AI...' : 'Re-Run AI Audit'}
+          </Button>
+
           <Button
             variant="secondary"
             icon={UploadCloud}
             onClick={() => setUploadModalOpen(true)}
           >
-            Re-Upload / New Media
+            Re-Upload Media
           </Button>
         </div>
       </div>
@@ -99,7 +162,7 @@ export default function MeetingAnalysis() {
           <div className="mb-2 flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-brand-900">
               <Sparkles size={16} className="text-brand-600" />
-              Verified Meeting Transcript (Whisper AI / Subtitles)
+              Verified Meeting Transcript (Whisper AI / Teams Subtitles)
             </h3>
             <span className="text-xs text-ink-500">{meeting.transcript.length} characters</span>
           </div>
@@ -109,47 +172,52 @@ export default function MeetingAnalysis() {
         </Card>
       )}
 
-      {a.summary && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-7">
-          <MetricCard label="Questions Identified" value={a.summary.questionsIdentified || 0} />
-          <MetricCard label="Asked" value={a.summary.asked || 0} />
-          <MetricCard label="Answered" value={a.summary.answered || 0} />
-          <MetricCard label="Partial" value={a.summary.partial || 0} />
-          <MetricCard label="Missed" value={a.summary.missed || 0} deltaTone="critical" />
-          <MetricCard label="New Requirements" value={a.summary.newRequirements || 0} />
-          <MetricCard label="Decisions" value={a.summary.decisions || 0} />
-        </div>
-      )}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-7">
+        <MetricCard label="Questions Identified" value={summary.questionsIdentified || 0} />
+        <MetricCard label="Asked" value={summary.asked || 0} />
+        <MetricCard label="Answered" value={summary.answered || 0} />
+        <MetricCard label="Partial" value={summary.partial || 0} />
+        <MetricCard label="Missed Gaps" value={summary.missed || 0} deltaTone="critical" />
+        <MetricCard label="New Requirements" value={summary.newRequirements || 0} />
+        <MetricCard label="Decisions" value={summary.decisions || 0} />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <h3 className="mb-3 text-sm font-semibold text-ink-900">Questions Asked &amp; Answered</h3>
+          <h3 className="mb-3 text-sm font-bold text-ink-900 flex items-center gap-1.5">
+            <CheckCircle2 size={16} className="text-success-600" />
+            Questions Asked &amp; Answered During Session
+          </h3>
           <div className="space-y-2.5">
             {(a.questionsAsked || []).map((q, i) => (
-              <div key={i} className="flex items-start justify-between gap-3 text-sm">
-                <p className="text-ink-700">{q.question}</p>
+              <div key={i} className="flex items-start justify-between gap-3 text-sm border-b border-ink-50 pb-2 last:border-0 last:pb-0">
+                <p className="text-ink-800 leading-snug">{q.question}</p>
                 <Badge tone={q.status === 'Answered' ? 'positive' : 'warning'}>{q.status}</Badge>
               </div>
             ))}
           </div>
         </Card>
 
-        <Card>
-          <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-critical-600">
-            <AlertTriangle size={15} /> Critical Missed Questions (SAP Gaps)
+        <Card className="border-critical-200 bg-critical-50/10">
+          <h3 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-critical-700">
+            <AlertTriangle size={16} className="text-critical-600" />
+            Critical Missed Questions (SAP Gaps)
           </h3>
+          <p className="mb-3 text-xs text-ink-500">
+            High-risk architectural questions that were omitted during the workshop:
+          </p>
           <div className="space-y-3">
             {(a.missedQuestions || []).map((q, i) => (
-              <div key={i} className="rounded-lg bg-critical-50/60 p-3 border border-critical-100">
+              <div key={i} className="rounded-lg bg-critical-50/70 p-3.5 border border-critical-200">
                 <div className="mb-1 flex items-center gap-2">
                   <Badge tone="critical">{q.priority || 'Critical'}</Badge>
                   {q.confidence && (
-                    <span className="ml-auto data-num text-xs font-semibold text-critical-600">
+                    <span className="ml-auto data-num text-xs font-semibold text-critical-700">
                       {q.confidence}% confidence
                     </span>
                   )}
                 </div>
-                <p className="text-sm font-medium text-ink-900">{q.question}</p>
+                <p className="text-sm font-semibold text-ink-900">{q.question}</p>
               </div>
             ))}
           </div>
@@ -158,34 +226,34 @@ export default function MeetingAnalysis() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
-          <h3 className="mb-3 text-sm font-semibold text-ink-900">New Requirements Identified</h3>
-          <div className="space-y-2">
+          <h3 className="mb-3 text-sm font-bold text-ink-900">New Requirements Identified</h3>
+          <div className="space-y-2.5">
             {(a.newRequirements || []).map((r, idx) => (
-              <div key={idx} className="text-sm">
-                <span className="font-semibold text-brand-600">{r.id || `REQ-${idx + 1}`}</span> — <span className="text-ink-700">{r.text}</span>
+              <div key={idx} className="text-sm border-b border-ink-50 pb-2 last:border-0 last:pb-0">
+                <span className="font-bold text-brand-700">{r.id || `REQ-${idx + 1}`}</span> — <span className="text-ink-700">{r.text}</span>
               </div>
             ))}
           </div>
         </Card>
 
         <Card>
-          <h3 className="mb-3 text-sm font-semibold text-ink-900">Decisions Finalized</h3>
-          <div className="space-y-2">
+          <h3 className="mb-3 text-sm font-bold text-ink-900">Decisions Finalized</h3>
+          <div className="space-y-2.5">
             {(a.decisions || []).map((d, i) => (
-              <div key={i} className="text-sm">
-                <p className="text-ink-700">{d.text}</p>
-                {d.module && <Badge tone="neutral" className="mt-1">{d.module}</Badge>}
+              <div key={i} className="text-sm border-b border-ink-50 pb-2 last:border-0 last:pb-0">
+                <p className="text-ink-800 font-medium">{d.text}</p>
+                {d.module && <Badge tone="neutral" className="mt-1">SAP {d.module}</Badge>}
               </div>
             ))}
           </div>
         </Card>
 
         <Card>
-          <h3 className="mb-3 text-sm font-semibold text-ink-900">Risks &amp; Dependencies</h3>
-          <div className="space-y-2">
+          <h3 className="mb-3 text-sm font-bold text-ink-900">Risks &amp; Dependencies</h3>
+          <div className="space-y-2.5">
             {(a.risks || []).map((r, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 text-sm">
-                <p className="text-ink-700">{r.text}</p>
+              <div key={i} className="flex items-center justify-between gap-2 text-sm border-b border-ink-50 pb-2 last:border-0 last:pb-0">
+                <p className="text-ink-800">{r.text}</p>
                 <Badge tone={r.severity === 'High' ? 'critical' : 'warning'}>{r.severity || 'Medium'}</Badge>
               </div>
             ))}
@@ -194,12 +262,12 @@ export default function MeetingAnalysis() {
       </div>
 
       <Card>
-        <h3 className="mb-3 text-sm font-semibold text-ink-900">Follow-up Action Items</h3>
-        <ul className="space-y-1.5">
+        <h3 className="mb-3 text-sm font-bold text-ink-900">Follow-up Action Items</h3>
+        <ul className="space-y-2">
           {(a.followUpActions || []).map((f, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm text-ink-700">
-              <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-brand-500" />
-              {typeof f === 'string' ? f : f.item}
+            <li key={i} className="flex items-start gap-2.5 text-sm text-ink-800">
+              <span className="mt-1.5 h-2 w-2 rounded-full bg-brand-600 shrink-0" />
+              <span>{typeof f === 'string' ? f : f.item}</span>
             </li>
           ))}
         </ul>

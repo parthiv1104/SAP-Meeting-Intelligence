@@ -1,7 +1,6 @@
-import { mockResolve } from './apiUtils';
-import { teamMembers } from '../data/mockData';
+import { defaultTeamMembers } from '../config/constants';
 
 export const teamService = {
-  list: () => mockResolve(teamMembers),
-  get: (id) => mockResolve(teamMembers.find((t) => t.id === id)),
+  list: async () => defaultTeamMembers,
+  get: async (id) => defaultTeamMembers.find((t) => t.id === id) || defaultTeamMembers[0],
 };

@@ -1,12 +1,12 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FolderKanban, CalendarClock, CircleHelp, BrainCog,
-  ClipboardList, GitCommit, FileText, BarChart3, LineChart, Settings,
-  LifeBuoy, ChevronsLeft, ChevronsRight, LogOut, Building2,
+  FileText, BarChart3, Settings, ChevronsLeft, ChevronsRight, LogOut, Building2,
 } from 'lucide-react';
 import LogoMark from '../ui/LogoMark';
 import Avatar from '../ui/Avatar';
-import { currentUser, organization } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
+import { organization } from '../../config/constants';
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -14,14 +14,22 @@ const NAV = [
   { to: '/meetings', label: 'Meetings', icon: CalendarClock },
   { to: '/questions', label: 'Questions', icon: CircleHelp },
   { to: '/knowledge', label: 'Knowledge', icon: BrainCog },
-  { to: '/requirements', label: 'Requirements', icon: ClipboardList },
-  { to: '/decisions', label: 'Decisions', icon: GitCommit },
   { to: '/documents', label: 'Documents', icon: FileText },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
-  { to: '/analytics', label: 'Analytics', icon: LineChart },
 ];
 
 export default function Sidebar({ collapsed, onToggle }) {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
+
+  const displayName = user?.name || user?.username || 'Consultant';
+  const displayRole = user?.role || 'Project Lead';
+
   return (
     <aside
       className={`sticky top-0 flex h-screen shrink-0 flex-col border-r border-ink-100 bg-white transition-all ${
@@ -70,27 +78,26 @@ export default function Sidebar({ collapsed, onToggle }) {
           <Settings size={17} />
           {!collapsed && <span>Settings</span>}
         </NavLink>
-        <button className="focus-ring flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50">
-          <LifeBuoy size={17} />
-          {!collapsed && <span>Help</span>}
-        </button>
 
         <div className="mt-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2">
-          <Avatar name={currentUser.name} size={30} />
+          <Avatar name={displayName} size={30} />
           {!collapsed && (
             <div className="min-w-0 leading-tight">
-              <p className="truncate text-sm font-medium text-ink-800">{currentUser.name}</p>
-              <p className="truncate text-xs text-ink-400">{currentUser.role}</p>
+              <p className="truncate text-sm font-medium text-ink-800">{displayName}</p>
+              <p className="truncate text-xs text-ink-400">{displayRole}</p>
             </div>
           )}
         </div>
         {!collapsed && (
           <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-ink-400">
             <Building2 size={13} />
-            <span className="truncate">{organization.name}</span>
+            <span className="truncate">{user?.organization || organization.name}</span>
           </div>
         )}
-        <button className="focus-ring flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium text-ink-500 hover:bg-ink-50">
+        <button
+          onClick={handleLogout}
+          className="focus-ring flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+        >
           <LogOut size={16} />
           {!collapsed && <span>Log out</span>}
         </button>

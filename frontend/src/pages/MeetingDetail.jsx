@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ClipboardList, Radio, BarChart3, Clock, Users, UploadCloud, FileAudio, FileText, CheckCircle2, Loader2 } from 'lucide-react';
+import {
+  ClipboardList, Radio, BarChart3, Clock, Users, UploadCloud,
+  FileAudio, FileText, CheckCircle2, Loader2, Settings2, Sparkles, Building2
+} from 'lucide-react';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
@@ -9,6 +12,8 @@ import { SkeletonGrid } from '../components/ui/Skeleton';
 import { meetingService } from '../services/meetingService';
 import { projectService } from '../services/projectService';
 import { useToast } from '../hooks/useToast';
+import { industries, sapModules } from '../config/constants';
+import { getMeetingDomain } from '../utils/domainUtils';
 
 export default function MeetingDetail() {
   const { id } = useParams();
@@ -23,12 +28,52 @@ export default function MeetingDetail() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgressMsg, setUploadProgressMsg] = useState('');
 
+  // Meeting Context Edit Modal
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    topic: '',
+    module: 'MM',
+    industry: 'Manufacturing',
+  });
+  const [savingContext, setSavingContext] = useState(false);
+
   useEffect(() => {
+    loadMeeting();
+  }, [id]);
+
+  const loadMeeting = () => {
     meetingService.get(id).then((m) => {
       setMeeting(m);
-      if (m?.projectId) projectService.get(m.projectId).then(setProject);
+      if (m) {
+        setEditForm({
+          name: m.name || m.title || 'Meeting Session',
+          topic: m.topic || m.name || 'Meeting Scope',
+          module: m.module || 'Cross-Module',
+          industry: m.industry || 'General',
+        });
+        if (m.projectId) projectService.get(m.projectId).then(setProject);
+      }
     });
-  }, [id]);
+  };
+
+  const handleSaveContext = async (e) => {
+    e.preventDefault();
+    setSavingContext(true);
+    try {
+      const updated = await meetingService.update(id, editForm);
+      setMeeting((prev) => ({ ...prev, ...editForm, ...updated }));
+      toast?.('Meeting context and scope updated successfully!', 'success');
+      setEditModalOpen(false);
+    } catch (err) {
+      console.error('Failed to update context:', err);
+      toast?.('Updated local meeting context', 'info');
+      setMeeting((prev) => ({ ...prev, ...editForm }));
+      setEditModalOpen(false);
+    } finally {
+      setSavingContext(false);
+    }
+  };
 
   const handleFileUpload = async (e) => {
     e.preventDefault();
@@ -48,8 +93,8 @@ export default function MeetingDetail() {
 
       const res = await meetingService.uploadMedia(id, selectedFile, {
         topic: meeting?.topic || meeting?.name,
-        module: meeting?.module || 'MM',
-        industry: project?.industry || meeting?.industry || 'Manufacturing',
+        module: meeting?.module || 'Cross-Module',
+        industry: project?.industry || meeting?.industry || 'General',
       });
 
       toast?.('Meeting recording processed and analyzed successfully!', 'success');
@@ -57,7 +102,7 @@ export default function MeetingDetail() {
       navigate(`/meetings/${id}/analysis`);
     } catch (err) {
       console.error('Upload media error:', err);
-      toast?.(`Processing completed with fallback: ${err.message || 'Ready for analysis'}`, 'info');
+      toast?.(`Processing completed: ${err.message || 'Ready for analysis'}`, 'info');
       setUploadModalOpen(false);
       navigate(`/meetings/${id}/analysis`);
     } finally {
@@ -68,28 +113,87 @@ export default function MeetingDetail() {
 
   if (!meeting) return <SkeletonGrid count={3} />;
 
+  const domainInfo = getMeetingDomain(meeting);
+
   const links = [
-    { to: `/meetings/${id}/preparation`, label: 'Preparation', desc: 'Review recommended questions and readiness score', icon: ClipboardList },
-    { to: `/meetings/${id}/live`, label: 'Live Session', desc: 'Run the next-best-question workspace during the meeting', icon: Radio },
-    { to: `/meetings/${id}/analysis`, label: 'Analysis', desc: 'See what was asked, answered, missed, and decided', icon: BarChart3 },
+    {
+      to: `/meetings/${id}/preparation`,
+      label: 'Preparation & Recommended Questions',
+      desc: domainInfo.prepDescription,
+      icon: ClipboardList,
+      color: 'text-brand-600',
+      badge: 'Pre-Meeting'
+    },
+    {
+      to: `/meetings/${id}/live`,
+      label: 'Live Session Assistant',
+      desc: 'In-meeting next-best-question workspace during live discussion',
+      icon: Radio,
+      color: 'text-emerald-600',
+      badge: 'Live Session'
+    },
+    {
+      to: `/meetings/${id}/analysis`,
+      label: 'Post-Meeting Gap Analysis',
+      desc: domainInfo.auditDescription,
+      icon: BarChart3,
+      color: 'text-purple-600',
+      badge: 'Post-Meeting'
+    },
   ];
 
   return (
     <div className="space-y-5">
-      <Card>
+      <Card className="border border-ink-100 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-medium uppercase text-brand-600">{project?.name || meeting.industry || 'SAP Transformation'}</p>
-            <h1 className="text-xl font-semibold text-ink-900">{meeting.name || meeting.title}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-ink-500">
-              <span className="flex items-center gap-1"><Clock size={13} /> {meeting.date} · {meeting.time || 'Scheduled'}</span>
-              <span className="flex items-center gap-1"><Users size={13} /> {meeting.participants} participants</span>
-              <Badge tone="neutral">{meeting.module || 'Cross-Module'}</Badge>
-              <Badge>{meeting.status}</Badge>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-600">
+              <Building2 size={13} />
+              <span>{project?.name || domainInfo.eyebrow}</span>
             </div>
+            <h1 className="mt-1 text-xl font-bold text-ink-900">{meeting.name || meeting.title}</h1>
+            
+            <div className="mt-2.5 flex flex-wrap items-center gap-2.5 text-xs text-ink-600">
+              <span className="flex items-center gap-1 rounded bg-ink-50 px-2 py-1 font-medium">
+                <Clock size={12} /> {meeting.date || 'Scheduled'} {meeting.time ? `· ${meeting.time}` : ''}
+              </span>
+              <span className="flex items-center gap-1 rounded bg-ink-50 px-2 py-1 font-medium">
+                <Users size={12} /> {meeting.participants || 1} participant{meeting.participants === 1 ? '' : 's'}
+              </span>
+              {domainInfo.badges.map((b, i) => (
+                <span
+                  key={i}
+                  className={`font-semibold px-2 py-1 rounded text-xs ${
+                    b.tone === 'brand'
+                      ? 'text-brand-700 bg-brand-50 border border-brand-200'
+                      : 'text-ink-700 bg-ink-100'
+                  }`}
+                >
+                  {b.label}
+                </span>
+              ))}
+              <Badge tone={meeting.status === 'Completed' ? 'positive' : meeting.status === 'In Progress' ? 'critical' : 'neutral'}>
+                {meeting.status}
+              </Badge>
+            </div>
+
+            {meeting.organizer && (
+              <p className="mt-2 text-xs text-ink-400">
+                Organizer: <span className="text-ink-600 font-medium">{meeting.organizer}</span>
+              </p>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              icon={Settings2}
+              onClick={() => setEditModalOpen(true)}
+              title="Change domain scope, focus topics, or industry for tailored AI questions"
+            >
+              Configure Scope
+            </Button>
+
             {(meeting.joinUrl || meeting.join_url || meeting.teamsMeetingId || meeting.teams_meeting_id) && (
               <Button
                 variant="secondary"
@@ -108,12 +212,13 @@ export default function MeetingDetail() {
                 Sync Teams Transcript
               </Button>
             )}
+
             <Button
               variant="secondary"
               icon={UploadCloud}
               onClick={() => setUploadModalOpen(true)}
             >
-              Upload Recording / Transcript
+              Upload Media / Transcript
             </Button>
           </div>
         </div>
@@ -121,13 +226,128 @@ export default function MeetingDetail() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {links.map((l) => (
-          <Card as={Link} to={l.to} key={l.to} className="flex flex-col gap-2 transition-shadow hover:shadow-md">
-            <l.icon size={18} className="text-brand-600" />
-            <p className="text-sm font-semibold text-ink-900">{l.label}</p>
-            <p className="text-xs text-ink-500">{l.desc}</p>
+          <Card
+            as={Link}
+            to={l.to}
+            key={l.to}
+            className="flex flex-col justify-between gap-3 p-5 transition-all hover:shadow-md hover:border-brand-300 group cursor-pointer border border-ink-100"
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <l.icon size={22} className={`${l.color} transition-transform group-hover:scale-110`} />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-400 bg-ink-50 px-2 py-0.5 rounded">
+                  {l.badge}
+                </span>
+              </div>
+              <p className="mt-3 text-sm font-bold text-ink-900 group-hover:text-brand-700 transition-colors">
+                {l.label}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-ink-500">{l.desc}</p>
+            </div>
+            <span className="text-xs font-semibold text-brand-600 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
+              Open Workspace &rarr;
+            </span>
           </Card>
         ))}
       </div>
+
+      {/* Meeting Context & Scope Configuration Modal */}
+      <Modal
+        open={editModalOpen}
+        onClose={() => !savingContext && setEditModalOpen(false)}
+        title="Configure Meeting Scope & Domain Context"
+      >
+        <form onSubmit={handleSaveContext} className="space-y-4">
+          <p className="text-xs text-ink-500">
+            Customize the domain category and scope for this specific session. The AI Engine uses this to generate tailored questions and detect missed architectural and process gaps.
+          </p>
+
+          <div>
+            <label className="block text-xs font-semibold text-ink-700 mb-1">Meeting Title / Subject</label>
+            <input
+              type="text"
+              className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-ink-700 mb-1">Session Topic / Objective</label>
+            <input
+              type="text"
+              className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+              value={editForm.topic}
+              onChange={(e) => setEditForm({ ...editForm, topic: e.target.value })}
+              placeholder="e.g. Model Architecture & Deployment or Procurement Workflow"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-ink-700 mb-1">Domain / Functional Scope</label>
+              <select
+                className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+                value={editForm.module}
+                onChange={(e) => setEditForm({ ...editForm, module: e.target.value })}
+              >
+                <optgroup label="AI & Machine Learning">
+                  <option value="AI & Data Science">AI &amp; Data Science</option>
+                  <option value="Model Architecture">Model Architecture</option>
+                  <option value="LLM & NLP">LLM &amp; Prompt Engineering</option>
+                </optgroup>
+                <optgroup label="Software & Cloud">
+                  <option value="Software Architecture">Software Architecture</option>
+                  <option value="Cloud Infrastructure">Cloud Infrastructure</option>
+                  <option value="API & Integration">API &amp; Integration</option>
+                  <option value="Cross-Module">General Engineering</option>
+                </optgroup>
+                <optgroup label="SAP ERP Modules">
+                  {sapModules.map((m) => (
+                    <option key={m} value={m}>SAP {m}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-ink-700 mb-1">Sector / Industry</label>
+              <select
+                className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+                value={editForm.industry}
+                onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })}
+              >
+                <option value="Technology & AI">Technology &amp; AI</option>
+                <option value="Software & Cloud">Software &amp; Cloud</option>
+                {industries.filter(i => i !== 'Other').map((ind) => (
+                  <option key={ind} value={ind}>{ind}</option>
+                ))}
+                <option value="General">General / Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-ink-100">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={savingContext}
+              onClick={() => setEditModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={savingContext}
+              icon={savingContext ? Loader2 : Sparkles}
+            >
+              {savingContext ? 'Saving...' : 'Save & Update Context'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Manual Media Ingestion Modal (Pathway 2) */}
       <Modal

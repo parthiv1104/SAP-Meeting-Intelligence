@@ -4,9 +4,7 @@ import { Check } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import Badge from '../components/ui/Badge';
-import { industries, sapModules, teamMembers } from '../data/mockData';
-import { useToast } from '../hooks/useToast';
+import { industries, sapModules, teamMembers } from '../config/constants';
 
 const STEPS = ['Basic Information', 'SAP Scope', 'SAP Modules', 'Project Team', 'Timeline', 'Confirmation'];
 

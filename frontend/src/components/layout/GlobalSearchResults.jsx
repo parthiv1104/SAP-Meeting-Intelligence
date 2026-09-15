@@ -1,50 +1,49 @@
-import { projects, meetings, questions, requirements, decisions, documents, knowledgeItems } from '../../data/mockData';
+import { useEffect, useState } from 'react';
+import { meetingService } from '../../services/meetingService';
+import { projectService } from '../../services/projectService';
+import { questionService } from '../../services/questionService';
+import { knowledgeService } from '../../services/knowledgeService';
 
 function matches(text, query) {
   return text?.toLowerCase().includes(query.toLowerCase());
 }
 
 export default function GlobalSearchResults({ query, onNavigate }) {
+  const [meetings, setMeetings] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [questions, setQuestions] = useState([]);
+  const [knowledge, setKnowledge] = useState([]);
+
+  useEffect(() => {
+    if (!query || query.trim().length < 2) return;
+    meetingService.list({ search: query }).then(setMeetings);
+    projectService.list().then(setProjects);
+    questionService.list({ search: query }).then(setQuestions);
+    knowledgeService.list({ search: query }).then(setKnowledge);
+  }, [query]);
+
   const groups = [
     {
       label: 'Projects',
-      items: projects.filter((p) => matches(p.name, query) || matches(p.client, query))
+      items: (projects || []).filter((p) => matches(p.name, query) || matches(p.client, query))
         .slice(0, 3)
         .map((p) => ({ title: p.name, subtitle: p.client, path: `/projects/${p.id}` })),
     },
     {
       label: 'Meetings',
-      items: meetings.filter((m) => matches(m.name, query) || matches(m.topic, query))
-        .slice(0, 3)
+      items: (meetings || []).filter((m) => matches(m.name, query) || matches(m.topic, query))
+        .slice(0, 4)
         .map((m) => ({ title: m.name, subtitle: m.topic, path: `/meetings/${m.id}` })),
     },
     {
       label: 'Questions',
-      items: questions.filter((q) => matches(q.question, query))
-        .slice(0, 3)
-        .map((q) => ({ title: q.question, subtitle: q.module, path: `/questions/${q.id}` })),
-    },
-    {
-      label: 'Requirements',
-      items: requirements.filter((r) => matches(r.text, query) || matches(r.id, query))
-        .slice(0, 3)
-        .map((r) => ({ title: r.text, subtitle: r.id, path: '/requirements' })),
-    },
-    {
-      label: 'Decisions',
-      items: decisions.filter((d) => matches(d.text, query))
-        .slice(0, 3)
-        .map((d) => ({ title: d.text, subtitle: d.id, path: '/decisions' })),
-    },
-    {
-      label: 'Documents',
-      items: documents.filter((d) => matches(d.name, query))
-        .slice(0, 3)
-        .map((d) => ({ title: d.name, subtitle: d.type, path: '/documents' })),
+      items: (questions || []).filter((q) => matches(q.text || q.question, query))
+        .slice(0, 4)
+        .map((q) => ({ title: q.text || q.question, subtitle: q.module, path: `/questions/${q.id}` })),
     },
     {
       label: 'Knowledge',
-      items: knowledgeItems.filter((k) => matches(k.title, query) || matches(k.content, query))
+      items: (knowledge || []).filter((k) => matches(k.title, query) || matches(k.content, query))
         .slice(0, 3)
         .map((k) => ({ title: k.title, subtitle: k.category, path: '/knowledge' })),
     },
