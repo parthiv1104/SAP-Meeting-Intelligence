@@ -31,13 +31,11 @@ def extract_audio_from_video(video_path: str, output_audio_path: str) -> bool:
 def transcribe_audio(audio_file_path: str) -> str:
     """
     Transcribes audio using OpenAI Whisper API (whisper-1).
-    Falls back gracefully if API key is not present or audio is unreadable.
     """
     api_key = os.getenv("OPENAI_API_KEY") or getattr(settings, "OPENAI_API_KEY", "")
     
     if not api_key or api_key.startswith("your_") or len(api_key) < 10:
-        print("[Transcription Service]: OPENAI_API_KEY not configured. Generating representative SAP workshop transcript.")
-        return _mock_sap_transcript()
+        raise ValueError("OPENAI_API_KEY is not configured. Please provide a valid OpenAI API Key in backend/.env to transcribe audio.")
 
     try:
         client = OpenAI(api_key=api_key)
@@ -50,17 +48,4 @@ def transcribe_audio(audio_file_path: str) -> str:
         return str(transcript)
     except Exception as e:
         print(f"[Transcription Service]: Whisper transcription error: {e}")
-        return _mock_sap_transcript()
-
-def _mock_sap_transcript() -> str:
-    return (
-        "Speaker 1 (SAP MM Lead - VC ERP): Welcome everyone to the SAP S/4HANA Procurement & Material Master session. "
-        "Let's review the purchase requisition approval workflow and vendor evaluation parameters. "
-        "Speaker 2 (Client Procurement Head): We have two manufacturing plants in Gujarat and one distribution center in Pune. "
-        "We require batch management enabled for all raw materials with expiry date tracking. "
-        "Speaker 1: Understood. What is the approval matrix for purchase orders exceeding ₹5,00,000? "
-        "Speaker 3 (Client Finance Manager): POs above ₹5,00,000 require two-level approval: first by the Plant Head, then by the Finance Director. "
-        "Speaker 1: Perfect. What is the tolerance limit for goods receipt quantity variance? "
-        "Speaker 2: Standard tolerance is 5%, but we need it configurable per material group. "
-        "Speaker 1: Noted. We will configure tiered tolerance keys and document this in the Business Blueprint."
-    )
+        raise e

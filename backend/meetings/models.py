@@ -15,7 +15,8 @@ class Meeting(models.Model):
     name = models.CharField(max_length=255, default='SAP Meeting')
     project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='meetings')
     
-    # Teams Integration Reference
+    # Teams Integration & User Ownership Reference
+    user_email = models.CharField(max_length=255, blank=True, default='', db_index=True)
     teams_meeting_id = models.CharField(max_length=500, blank=True, default='', db_index=True)
     join_url = models.URLField(max_length=1000, blank=True, default='')
     organizer = models.CharField(max_length=255, blank=True, default='')

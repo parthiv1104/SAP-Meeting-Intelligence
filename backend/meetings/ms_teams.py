@@ -35,6 +35,84 @@ def get_app_access_token():
     print("[MSAL Error]:", result.get("error_description", result))
     return None
 
+def parse_graph_event(e):
+    online_meeting = e.get('onlineMeeting') or {}
+    join_url = online_meeting.get('joinUrl') or e.get('onlineMeetingUrl') or ''
+    subject = e.get('subject') or 'SAP Meeting Session'
+    
+    # Parse start and end timestamps
+    start_obj = e.get('start') or {}
+    end_obj = e.get('end') or {}
+    start_str = start_obj.get('dateTime', '')
+    end_str = end_obj.get('dateTime', '')
+    now = datetime.now(timezone.utc)
+    
+    # Dynamic Status Calculation
+    is_cancelled = e.get('isCancelled', False) or subject.lower().startswith('canceled:') or subject.lower().startswith('cancelled:')
+    
+    if is_cancelled:
+        status = 'Cancelled'
+    elif end_str:
+        try:
+            end_dt = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
+            start_dt = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
+            
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=timezone.utc)
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=timezone.utc)
+
+            if now > end_dt:
+                status = 'Completed'
+            elif start_dt <= now <= end_dt:
+                status = 'In Progress'
+            else:
+                status = 'Scheduled'
+        except Exception:
+            status = 'Completed' if start_str[:10] < now.strftime('%Y-%m-%d') else 'Scheduled'
+    else:
+        status = 'Scheduled'
+
+    # Infer SAP module from subject if available
+    subject_upper = subject.upper()
+    module = 'Cross-Module'
+    for mod in ['MM', 'FI', 'CO', 'SD', 'PP', 'QM', 'PM', 'EWM', 'HCM', 'PS']:
+        if f" {mod} " in f" {subject_upper} " or f"({mod})" in subject_upper or f"[{mod}]" in subject_upper or f"/{mod}" in subject_upper or f"-{mod}" in subject_upper or subject_upper.startswith(f"{mod} "):
+            module = mod
+            break
+
+    # Infer Industry if available in subject
+    industry = 'Manufacturing'
+    for ind in ['Pharma', 'Pharmaceutical', 'Retail', 'Automotive', 'Logistics', 'Energy', 'Chemical', 'Healthcare']:
+        if ind.lower() in subject.lower():
+            industry = ind.capitalize()
+            break
+
+    organizer_data = (e.get('organizer') or {}).get('emailAddress') or {}
+    organizer_name = organizer_data.get('name') or organizer_data.get('address') or ''
+    attendees_list = [(a.get('emailAddress') or {}).get('name') or (a.get('emailAddress') or {}).get('address') for a in (e.get('attendees') or [])]
+
+    return {
+        'id': e.get('id', ''),
+        'name': subject,
+        'title': subject,
+        'date': start_str[:10] if start_str else '',
+        'time': start_str[11:16] if len(start_str) >= 16 else '',
+        'start_time': start_str,
+        'end_time': end_str,
+        'joinUrl': join_url,
+        'join_url': join_url,
+        'participants': len(e.get('attendees') or []),
+        'attendees': attendees_list,
+        'status': status,
+        'topic': subject,
+        'module': module,
+        'industry': industry,
+        'organizer': organizer_name,
+        'preparationScore': 88,
+        'analysisStatus': 'Analyzed' if status == 'Completed' else 'Pending',
+    }
+
 def fetch_teams_meetings(user_email=None):
     """
     Pathway 1: Live Calendar Sync
@@ -46,7 +124,7 @@ def fetch_teams_meetings(user_email=None):
         return []
 
     headers = {'Authorization': f'Bearer {token}'}
-    email = user_email or os.getenv('MS_USER_EMAIL', 'parthiv.dudhrejiya@vc-erp.com')
+    email = user_email or os.getenv('MS_USER_EMAIL')
     
     url = f"https://graph.microsoft.com/v1.0/users/{email}/calendar/events?$select=id,subject,start,end,attendees,isOnlineMeeting,onlineMeeting,isCancelled,organizer&$orderby=start/dateTime desc&$top=50"
     
@@ -54,82 +132,33 @@ def fetch_teams_meetings(user_email=None):
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             events = response.json().get('value', [])
-            meetings = []
-            now = datetime.now(timezone.utc)
-            
-            for e in events:
-                online_meeting = e.get('onlineMeeting') or {}
-                join_url = online_meeting.get('joinUrl') or e.get('onlineMeetingUrl') or ''
-                subject = e.get('subject') or 'SAP Meeting Session'
-                
-                # Parse start and end timestamps
-                start_obj = e.get('start') or {}
-                end_obj = e.get('end') or {}
-                start_str = start_obj.get('dateTime', '')
-                end_str = end_obj.get('dateTime', '')
-                
-                # Dynamic Status Calculation
-                is_cancelled = e.get('isCancelled', False) or subject.lower().startswith('canceled:') or subject.lower().startswith('cancelled:')
-                
-                if is_cancelled:
-                    status = 'Cancelled'
-                elif end_str:
-                    try:
-                        end_dt = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
-                        start_dt = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
-                        
-                        if end_dt.tzinfo is None:
-                            end_dt = end_dt.replace(tzinfo=timezone.utc)
-                        if start_dt.tzinfo is None:
-                            start_dt = start_dt.replace(tzinfo=timezone.utc)
-
-                        if now > end_dt:
-                            status = 'Completed'
-                        elif start_dt <= now <= end_dt:
-                            status = 'In Progress'
-                        else:
-                            status = 'Scheduled'
-                    except Exception:
-                        status = 'Completed' if start_str[:10] < now.strftime('%Y-%m-%d') else 'Scheduled'
-                else:
-                    status = 'Scheduled'
-
-                # Infer SAP module from subject if available
-                subject_upper = subject.upper()
-                module = 'Cross-Module'
-                for mod in ['MM', 'FI', 'CO', 'SD', 'PP', 'QM', 'PM', 'EWM', 'HCM', 'PS']:
-                    if f" {mod} " in f" {subject_upper} " or f"({mod})" in subject_upper or f"[{mod}]" in subject_upper or f"/{mod}" in subject_upper or f"-{mod}" in subject_upper:
-                        module = mod
-                        break
-
-                organizer_data = (e.get('organizer') or {}).get('emailAddress') or {}
-                organizer_name = organizer_data.get('name') or organizer_data.get('address') or ''
-
-                meetings.append({
-                    'id': e.get('id', ''),
-                    'name': subject,
-                    'title': subject,
-                    'date': start_str[:10] if start_str else '',
-                    'time': start_str[11:16] if len(start_str) >= 16 else '',
-                    'start_time': start_str,
-                    'end_time': end_str,
-                    'joinUrl': join_url,
-                    'join_url': join_url,
-                    'participants': len(e.get('attendees') or []),
-                    'status': status,
-                    'topic': subject,
-                    'module': module,
-                    'organizer': organizer_name,
-                    'preparationScore': 88,
-                    'analysisStatus': 'Analyzed' if status == 'Completed' else 'Pending',
-                })
-            return meetings
+            return [parse_graph_event(e) for e in events]
         else:
             print("[MS Teams Graph API Error]:", response.status_code, response.text)
             return []
     except Exception as exc:
         print("[MS Teams Fetch Exception]:", exc)
         return []
+
+def fetch_single_teams_meeting(event_id, user_email=None):
+    """
+    Fetches details for a single calendar event by its Microsoft Graph event ID.
+    """
+    token = get_app_access_token()
+    if not token or not event_id:
+        return None
+
+    headers = {'Authorization': f'Bearer {token}'}
+    email = user_email or os.getenv('MS_USER_EMAIL')
+    url = f"https://graph.microsoft.com/v1.0/users/{email}/calendar/events/{event_id}"
+
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            return parse_graph_event(response.json())
+    except Exception as exc:
+        print(f"[MS Teams Fetch Single Event Error]: {exc}")
+    return None
 
 def fetch_teams_meeting_transcript(join_url=None, user_email=None):
     """
@@ -140,7 +169,7 @@ def fetch_teams_meeting_transcript(join_url=None, user_email=None):
         return None
 
     headers = {'Authorization': f'Bearer {token}'}
-    email = user_email or os.getenv('MS_USER_EMAIL', 'parthiv.dudhrejiya@vc-erp.com')
+    email = user_email or os.getenv('MS_USER_EMAIL')
 
     try:
         # 1. Lookup online meeting by JoinWebUrl

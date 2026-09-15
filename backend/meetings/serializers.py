@@ -9,11 +9,13 @@ class MeetingSerializer(serializers.ModelSerializer):
     teamsMeetingId = serializers.CharField(source='teams_meeting_id', required=False, allow_blank=True)
     preMeetingPreparation = serializers.JSONField(source='pre_meeting_preparation', required=False)
     postMeetingAnalysis = serializers.JSONField(source='post_meeting_analysis', required=False)
+    userEmail = serializers.CharField(source='user_email', required=False, allow_blank=True)
 
     class Meta:
         model = Meeting
         fields = [
             'id', 'name', 'project', 'projectId', 'module', 'topic',
+            'user_email', 'userEmail',
             'date', 'time', 'start_time', 'end_time', 'participants',
             'status', 'organizer', 'join_url', 'joinUrl', 'teams_meeting_id', 'teamsMeetingId',
             'industry', 'preparation_score', 'preparationScore',
