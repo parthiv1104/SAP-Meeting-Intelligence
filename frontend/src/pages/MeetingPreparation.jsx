@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { CheckCircle2, PlayCircle, Users, Clock, Sparkles, RefreshCw, ArrowLeft, AlertCircle, ShieldAlert, BookOpen } from 'lucide-react';
+import { CheckCircle2, BarChart3, Users, Clock, Sparkles, RefreshCw, ArrowLeft, AlertCircle, ShieldAlert, BookOpen } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import ProgressBar from '../components/ui/ProgressBar';
@@ -92,6 +92,16 @@ export default function MeetingPreparation() {
             <span className="flex items-center gap-1"><Clock size={12} /> {prep.date || meeting?.date} · {prep.time || meeting?.time || 'Scheduled'}</span>
             <span className="flex items-center gap-1"><Users size={12} /> {participants.length} participants</span>
           </div>
+
+          {prep.attachedDocuments && prep.attachedDocuments.length > 0 && (
+            <div className="mt-2.5 inline-flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs text-emerald-800">
+              <Sparkles size={13} className="text-emerald-600 shrink-0" />
+              <span>
+                <strong>Augmented by {prep.attachedDocuments.length} Attached Document{prep.attachedDocuments.length === 1 ? '' : 's'}:</strong>{' '}
+                <span className="font-medium text-emerald-900">{prep.attachedDocuments.join(', ')}</span>
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -104,8 +114,8 @@ export default function MeetingPreparation() {
           >
             {regenerating ? 'Generating with OpenAI...' : 'Regenerate Questions with AI'}
           </Button>
-          <Button icon={PlayCircle} onClick={() => navigate(`/meetings/${id}/live`)}>
-            Start Live Session
+          <Button icon={BarChart3} onClick={() => navigate(`/meetings/${id}/analysis`)}>
+            Post-Meeting Analysis
           </Button>
         </div>
       </div>

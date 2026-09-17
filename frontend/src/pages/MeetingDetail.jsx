@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ClipboardList, Radio, BarChart3, Clock, Users, UploadCloud,
-  FileAudio, FileText, CheckCircle2, Loader2, Settings2, Sparkles, Building2
+  FileAudio, FileText, CheckCircle2, Loader2, Settings2, Sparkles, Building2,
+  FileSpreadsheet, FileCode, Trash2, Eye, Plus, Paperclip
 } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
@@ -22,6 +23,12 @@ export default function MeetingDetail() {
   const [meeting, setMeeting] = useState(null);
   const [project, setProject] = useState(null);
 
+  // Meeting Documents (Isolated per meeting)
+  const [documents, setDocuments] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
+
   // Manual Media Ingestion (Pathway 2)
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -40,6 +47,7 @@ export default function MeetingDetail() {
 
   useEffect(() => {
     loadMeeting();
+    loadDocuments();
   }, [id]);
 
   const loadMeeting = () => {
@@ -55,6 +63,43 @@ export default function MeetingDetail() {
         if (m.projectId) projectService.get(m.projectId).then(setProject);
       }
     });
+  };
+
+  const loadDocuments = () => {
+    setLoadingDocs(true);
+    meetingService.getDocuments(id)
+      .then(setDocuments)
+      .finally(() => setLoadingDocs(false));
+  };
+
+  const handleDocumentUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingDoc(true);
+    try {
+      toast?.(`Extracting text from ${file.name}...`, 'info');
+      const doc = await meetingService.uploadDocument(id, file);
+      setDocuments((prev) => [doc, ...prev]);
+      toast?.(`Document "${file.name}" attached successfully! AI questions will now be augmented with its contents.`, 'success');
+    } catch (err) {
+      console.error('Document upload error:', err);
+      toast?.(`Upload failed: ${err.message}`, 'critical');
+    } finally {
+      setUploadingDoc(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteDocument = async (docId, filename) => {
+    try {
+      await meetingService.deleteDocument(id, docId);
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      toast?.(`Removed "${filename}".`, 'info');
+    } catch (err) {
+      console.error('Delete document error:', err);
+      toast?.('Failed to delete document', 'critical');
+    }
   };
 
   const handleSaveContext = async (e) => {
@@ -118,24 +163,20 @@ export default function MeetingDetail() {
   const links = [
     {
       to: `/meetings/${id}/preparation`,
-      label: 'Preparation & Recommended Questions',
-      desc: domainInfo.prepDescription,
+      label: 'Pre-Meeting Preparation Workspace',
+      desc: documents.length > 0
+        ? `Augmented with ${documents.length} attached scope document(s) for deep requirement validation.`
+        : domainInfo.prepDescription,
       icon: ClipboardList,
       color: 'text-brand-600',
-      badge: 'Pre-Meeting'
-    },
-    {
-      to: `/meetings/${id}/live`,
-      label: 'Live Session Assistant',
-      desc: 'In-meeting next-best-question workspace during live discussion',
-      icon: Radio,
-      color: 'text-emerald-600',
-      badge: 'Live Session'
+      badge: documents.length > 0 ? `${documents.length} Docs Attached` : 'Pre-Meeting'
     },
     {
       to: `/meetings/${id}/analysis`,
-      label: 'Post-Meeting Gap Analysis',
-      desc: domainInfo.auditDescription,
+      label: 'Post-Meeting Intelligence & Gap Analysis',
+      desc: documents.length > 0
+        ? `Audits transcript against ${documents.length} attached document(s) to surface unaddressed scope items.`
+        : domainInfo.auditDescription,
       icon: BarChart3,
       color: 'text-purple-600',
       badge: 'Post-Meeting'
@@ -224,7 +265,127 @@ export default function MeetingDetail() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {/* Scope & Requirement Documents Section (Isolated to this meeting) */}
+      <Card className="border border-ink-100 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600 border border-brand-100">
+              <Paperclip size={18} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-ink-900">Meeting Scope &amp; Specification Documents</h3>
+                <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-800">
+                  {documents.length} {documents.length === 1 ? 'Doc' : 'Docs'}
+                </span>
+              </div>
+              <p className="text-xs text-ink-500">
+                Upload BRD, SRS, RFP, or architecture specs. AI will deeply analyze them to formulate exact discovery questions.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="focus-ring inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-700 active:scale-95">
+              {uploadingDoc ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>Extracting Text...</span>
+                </>
+              ) : (
+                <>
+                  <Plus size={14} />
+                  <span>Attach Document</span>
+                </>
+              )}
+              <input
+                type="file"
+                disabled={uploadingDoc}
+                accept=".pdf,.docx,.doc,.txt,.xlsx,.csv"
+                onChange={handleDocumentUpload}
+                className="hidden"
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Documents Grid / Empty State */}
+        {loadingDocs ? (
+          <div className="flex items-center justify-center py-6 text-xs text-ink-400">
+            <Loader2 size={16} className="animate-spin mr-2 text-brand-500" />
+            Loading attached documents...
+          </div>
+        ) : documents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-ink-200 bg-ink-50/50 py-7 px-4 text-center">
+            <Paperclip size={24} className="text-ink-400 mb-2" />
+            <p className="text-xs font-semibold text-ink-700">No scope documents attached to this meeting yet</p>
+            <p className="mt-1 max-w-md text-[11px] text-ink-500">
+              Attach a PDF, Word doc, or spreadsheet (e.g. Procurement SRS, Architecture Draft) to automatically tailor pre-meeting discovery questions to this specific project scope.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {documents.map((doc) => {
+              const isPdf = doc.fileType === 'PDF' || doc.filename?.endsWith('.pdf');
+              const isWord = doc.fileType === 'Word' || doc.filename?.endsWith('.docx') || doc.filename?.endsWith('.doc');
+              const isExcel = doc.fileType === 'Excel' || doc.filename?.endsWith('.xlsx') || doc.filename?.endsWith('.csv');
+
+              return (
+                <div
+                  key={doc.id}
+                  className="flex flex-col justify-between rounded-xl border border-ink-100 bg-white p-3.5 shadow-xs transition hover:border-brand-300 hover:shadow-sm"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                      isPdf ? 'bg-red-50 text-red-600 border border-red-100' :
+                      isWord ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                      isExcel ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                      'bg-slate-50 text-slate-600 border border-slate-200'
+                    }`}>
+                      {isPdf ? <FileText size={20} /> :
+                       isWord ? <FileCode size={20} /> :
+                       isExcel ? <FileSpreadsheet size={20} /> :
+                       <FileText size={20} />}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-ink-900" title={doc.filename}>
+                        {doc.filename}
+                      </p>
+                      <div className="mt-1 flex items-center gap-2 text-[11px] text-ink-400">
+                        <span className="font-medium text-ink-600">{doc.fileType || 'Document'}</span>
+                        <span>•</span>
+                        <span>{doc.fileSize || 'Standard'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between border-t border-ink-50 pt-2 text-xs">
+                    <button
+                      onClick={() => setPreviewDoc(doc)}
+                      className="inline-flex items-center gap-1 font-medium text-brand-600 hover:text-brand-800"
+                    >
+                      <Eye size={13} />
+                      <span>Preview Text</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteDocument(doc.id, doc.filename)}
+                      className="inline-flex items-center gap-1 font-medium text-red-500 hover:text-red-700"
+                      title="Remove document"
+                    >
+                      <Trash2 size={13} />
+                      <span>Remove</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {links.map((l) => (
           <Card
             as={Link}
@@ -408,6 +569,35 @@ export default function MeetingDetail() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Scope Document Extracted Text Preview Modal */}
+      <Modal
+        open={!!previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        title={previewDoc ? `Document Content: ${previewDoc.filename}` : 'Document Preview'}
+      >
+        <div className="space-y-3">
+          <div className="flex items-center justify-between border-b border-ink-100 pb-2 text-xs text-ink-500">
+            <span>Type: <strong className="text-ink-800">{previewDoc?.fileType || 'Document'}</strong></span>
+            <span>Size: <strong className="text-ink-800">{previewDoc?.fileSize || 'Standard'}</strong></span>
+            <span>Attached to this meeting</span>
+          </div>
+
+          <p className="text-xs text-ink-500">
+            Below is the clean plain text extracted from this document. GPT-4o uses this content to formulate document-referenced questions and identify scope risks.
+          </p>
+
+          <div className="max-h-96 overflow-y-auto rounded-lg border border-ink-200 bg-ink-50 p-3.5 font-mono text-xs leading-relaxed text-ink-800 whitespace-pre-wrap">
+            {previewDoc?.extractedText || previewDoc?.extracted_text || 'No text extracted or document is empty.'}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button variant="secondary" onClick={() => setPreviewDoc(null)}>
+              Close Preview
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

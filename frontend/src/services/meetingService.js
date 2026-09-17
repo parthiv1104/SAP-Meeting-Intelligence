@@ -41,55 +41,7 @@ export const meetingService = {
     return res;
   },
 
-  // Get Live Interactive Meeting State (Pathway 1 / Interactive workspace)
-  getLiveState: async (id) => {
-    try {
-      const prep = await apiFetch(`/meetings/${encodeURIComponent(id)}/preparation/`);
-      const queue = (prep?.recommendedQuestions || []).map((q, idx) => ({
-        id: q.id || `q-${idx}`,
-        question: q.question,
-        topic: q.topic || 'Core Scope',
-        priority: q.priority || 'Critical',
-        confidence: q.confidence || 94,
-        reason: (q.reasons && q.reasons[0]) || 'Identified as key requirement checkpoint',
-      }));
-
-      return {
-        meetingId: id,
-        meetingName: prep?.meetingName || 'Live Session',
-        currentTopic: (prep?.topics && prep.topics[0]) || 'Requirements & Architecture',
-        status: 'In Progress',
-        coverage: 40,
-        questionsAsked: 2,
-        questionsAnswered: 2,
-        questionsOpen: queue.length,
-        queue: queue.length > 0 ? queue : [
-          {
-            id: 'q-live-1',
-            question: 'What are the target architecture benchmarks and delivery milestones?',
-            topic: 'Architecture & Scope',
-            priority: 'Critical',
-            confidence: 95,
-            reason: 'Essential prerequisite for baseline alignment',
-          }
-        ]
-      };
-    } catch (err) {
-      return {
-        meetingId: id,
-        meetingName: 'Live Session',
-        currentTopic: 'Requirements & Scope',
-        status: 'In Progress',
-        coverage: 20,
-        questionsAsked: 0,
-        questionsAnswered: 0,
-        questionsOpen: 5,
-        queue: []
-      };
-    }
-  },
-
-  // Get Post-Meeting Intelligence & Analysis (Pathway 4)
+  // Get Post-Meeting Intelligence & Analysis
   getAnalysis: async (id, options = {}) => {
     const query = new URLSearchParams(options).toString();
     return await apiFetch(`/meetings/${encodeURIComponent(id)}/analysis/${query ? `?${query}` : ''}`);
@@ -154,4 +106,46 @@ export const meetingService = {
   delete: (id) => apiFetch(`/meetings/${encodeURIComponent(id)}/`, {
     method: 'DELETE',
   }),
+
+  // Get all documents attached specifically to this meeting
+  getDocuments: async (meetingId) => {
+    try {
+      const data = await apiFetch(`/meetings/${encodeURIComponent(meetingId)}/documents/`);
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      console.warn('Failed to fetch meeting documents:', err);
+      return [];
+    }
+  },
+
+  // Upload scope document (PDF, Word, Excel, TXT) attached to this meeting
+  uploadDocument: async (meetingId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = localStorage.getItem('auth_token');
+    const authHeaders = token ? { 'Authorization': `Token ${token}` } : {};
+
+    const url = `${API_BASE_URL}/meetings/${encodeURIComponent(meetingId)}/documents/`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Document upload failed: ${errText || response.statusText}`);
+    }
+    return response.json();
+  },
+
+  // Delete attached document from this meeting
+  deleteDocument: async (meetingId, docId) => {
+    return apiFetch(`/meetings/${encodeURIComponent(meetingId)}/documents/${encodeURIComponent(docId)}/`, {
+      method: 'DELETE',
+    });
+  },
 };

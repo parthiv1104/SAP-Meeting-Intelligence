@@ -62,3 +62,25 @@ class Meeting(models.Model):
     @title.setter
     def title(self, value):
         self.name = value
+
+
+class MeetingDocument(models.Model):
+    """
+    Scope / Specification document uploaded specifically for an individual meeting.
+    Supports PDF, DOCX, TXT, XLSX.
+    """
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4, editable=True)
+    meeting = models.ForeignKey(Meeting, on_delete=models.CASCADE, related_name='documents')
+    file = models.FileField(upload_to='meeting_docs/')
+    filename = models.CharField(max_length=255)
+    file_type = models.CharField(max_length=50, blank=True, default='') # PDF, Word, Excel, Text
+    file_size = models.CharField(max_length=50, blank=True, default='')
+    extracted_text = models.TextField(blank=True, default='')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"{self.filename} ({self.meeting_id})"
+

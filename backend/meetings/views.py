@@ -7,11 +7,12 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, action
 from rest_framework.response import Response
 
-from .models import Meeting
-from .serializers import MeetingSerializer
+from .models import Meeting, MeetingDocument
+from .serializers import MeetingSerializer, MeetingDocumentSerializer
 from .ms_teams import get_live_teams_meetings, fetch_teams_meetings, fetch_single_teams_meeting, fetch_teams_meeting_transcript
 from .ai_service import generate_pre_meeting_preparation, analyze_post_meeting_transcript, is_sap_context
 from .transcription_service import extract_audio_from_video, transcribe_audio
+from .document_service import extract_text_from_file, format_file_size
 
 class MeetingViewSet(viewsets.ModelViewSet):
     """
@@ -138,24 +139,33 @@ def sync_teams_transcript(request, meeting_id):
     meeting = Meeting.objects.filter(id=meeting_id).first() or Meeting.objects.filter(teams_meeting_id=meeting_id).first()
     join_url = (meeting.join_url if meeting else None) or request.data.get('joinUrl')
     
+    transcript_text = None
+    if join_url:
+        user_email = request.data.get('user_email') or (meeting.user_email if meeting else None)
+        transcript_text = fetch_teams_meeting_transcript(join_url=join_url, user_email=user_email)
+
     if not transcript_text:
         transcript_text = (meeting.transcript if meeting else "") or ""
     
     if not transcript_text:
         return Response({
             'status': 'error',
-            'message': 'No transcript could be retrieved from Microsoft Teams. Please upload an audio/video recording or paste a transcript manually.'
+            'message': 'No native transcript could be retrieved from Microsoft Teams. (Teams requires live transcription to be turned on during the meeting). Please upload an audio/video recording or paste a transcript manually.'
         }, status=status.HTTP_400_BAD_REQUEST)
 
-    topic = meeting.topic if meeting else 'SAP Workshop'
-    module = meeting.module if meeting else 'MM'
-    industry = meeting.industry if meeting else 'Manufacturing'
+    topic = meeting.topic if meeting else 'Project Workshop'
+    module = meeting.module if meeting else 'Cross-Module'
+    industry = meeting.industry if meeting else 'General'
+
+    docs = MeetingDocument.objects.filter(meeting=meeting) if meeting else []
+    doc_context = "\n\n".join([f"=== File: {d.filename} ===\n{d.extracted_text}" for d in docs if d.extracted_text])
 
     analysis_results = analyze_post_meeting_transcript(
         transcript=transcript_text,
         topic=topic,
         module=module,
-        industry=industry
+        industry=industry,
+        document_context=doc_context
     )
 
     if meeting:
@@ -204,13 +214,28 @@ def meeting_preparation_detail(request, meeting_id):
     else:
         project_name = "SAP S/4HANA Enterprise Transformation" if is_sap else f"{meeting_name} Workspace"
 
+    # Pull any documents attached specifically to this meeting
+    docs = MeetingDocument.objects.filter(meeting=meeting) if meeting else []
+    doc_context = ""
+    if docs:
+        doc_pieces = []
+        for d in docs:
+            if d.extracted_text and d.extracted_text.strip():
+                doc_pieces.append(f"=== File: {d.filename} ({d.file_type}) ===\n{d.extracted_text}")
+        doc_context = "\n\n".join(doc_pieces)
+
     prep_data = generate_pre_meeting_preparation(
         topic=topic,
         industry=industry,
         module=module,
         project_name=project_name,
-        meeting_name=meeting_name
+        meeting_name=meeting_name,
+        document_context=doc_context
     )
+
+    if docs:
+        prep_data['attachedDocuments'] = [d.filename for d in docs]
+        prep_data['documentsCount'] = len(docs)
 
     if meeting:
         meeting.pre_meeting_preparation = prep_data
@@ -223,6 +248,148 @@ def meeting_preparation_detail(request, meeting_id):
         meeting.save(update_fields=['pre_meeting_preparation', 'module', 'industry', 'topic'])
 
     return Response(prep_data, status=status.HTTP_200_OK)
+
+@api_view(['GET', 'POST'])
+def meeting_documents_view(request, meeting_id):
+    """
+    Manages scope and requirement documents uploaded specifically for a meeting.
+    GET: List all documents for this meeting.
+    POST: Upload document (PDF, DOCX, TXT, XLSX), extract clean text, and link to meeting.
+    """
+    meeting = Meeting.objects.filter(id=meeting_id).first() or Meeting.objects.filter(teams_meeting_id=meeting_id).first()
+    if not meeting:
+        meeting = Meeting.objects.create(
+            id=meeting_id,
+            name=f"Meeting Session {meeting_id[:12]}",
+            teams_meeting_id=meeting_id
+        )
+
+    if request.method == 'GET':
+        docs = MeetingDocument.objects.filter(meeting=meeting)
+        serializer = MeetingDocumentSerializer(docs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response({'error': 'No document file was provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        filename = uploaded_file.name
+        ext = os.path.splitext(filename)[1].lower()
+        size_str = format_file_size(uploaded_file.size)
+
+        if ext == '.pdf':
+            file_type = 'PDF'
+        elif ext in ['.docx', '.doc']:
+            file_type = 'Word'
+        elif ext in ['.xlsx', '.xls', '.csv']:
+            file_type = 'Excel'
+        else:
+            file_type = 'Text'
+
+        doc = MeetingDocument.objects.create(
+            meeting=meeting,
+            file=uploaded_file,
+            filename=filename,
+            file_type=file_type,
+            file_size=size_str
+        )
+
+        # Extract text from the saved file
+        if doc.file and os.path.exists(doc.file.path):
+            extracted = extract_text_from_file(doc.file.path, ext)
+            doc.extracted_text = extracted
+            doc.save(update_fields=['extracted_text'])
+
+        # Invalidate old preparation cache so next prep uses the new document
+        if meeting.pre_meeting_preparation:
+            meeting.pre_meeting_preparation = {}
+            meeting.save(update_fields=['pre_meeting_preparation'])
+
+        serializer = MeetingDocumentSerializer(doc)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+@api_view(['DELETE'])
+def delete_meeting_document(request, meeting_id, doc_id):
+    """Deletes an attached scope document from the meeting."""
+    doc = MeetingDocument.objects.filter(id=doc_id, meeting_id=meeting_id).first()
+    if not doc:
+        # Also check by direct doc id
+        doc = MeetingDocument.objects.filter(id=doc_id).first()
+    if not doc:
+        return Response({'error': 'Document not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    meeting = doc.meeting
+    if doc.file and os.path.exists(doc.file.path):
+        try:
+            os.remove(doc.file.path)
+        except Exception:
+            pass
+
+    doc.delete()
+
+    # Invalidate prep cache so questions refresh without deleted doc
+    if meeting and meeting.pre_meeting_preparation:
+        meeting.pre_meeting_preparation = {}
+        meeting.save(update_fields=['pre_meeting_preparation'])
+
+    return Response({'status': 'success', 'message': 'Document removed.'}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def get_all_documents(request):
+    """
+    Returns all real documents uploaded across meetings in the system.
+    Includes meeting name, document name, file type, file size, upload date, file URL, and extracted text.
+    """
+    search = request.GET.get('search', '').lower()
+    type_filter = request.GET.get('type', '')
+    meeting_filter = request.GET.get('meeting_id', '')
+
+    docs = MeetingDocument.objects.select_related('meeting').all().order_by('-uploaded_at')
+    
+    results = []
+    for doc in docs:
+        meeting = doc.meeting
+        file_url = request.build_absolute_uri(doc.file.url) if doc.file else None
+        
+        doc_item = {
+            'id': doc.id,
+            'name': doc.filename,
+            'filename': doc.filename,
+            'fileUrl': file_url,
+            'fileType': doc.file_type or 'Document',
+            'type': doc.file_type or 'Document',
+            'fileSize': doc.file_size or 'Standard',
+            'size': doc.file_size or 'Standard',
+            'meetingId': meeting.id if meeting else None,
+            'meetingName': meeting.name if meeting else 'Meeting Session',
+            'module': meeting.module if meeting else 'Cross-Module',
+            'industry': meeting.industry if meeting else 'General',
+            'uploadedBy': meeting.organizer or meeting.user_email or 'Consultant',
+            'date': doc.uploaded_at.strftime('%Y-%m-%d %H:%M') if doc.uploaded_at else (meeting.date if meeting else 'Recent'),
+            'uploadDate': doc.uploaded_at.strftime('%Y-%m-%d') if doc.uploaded_at else (meeting.date if meeting else 'Recent'),
+            'extractedText': doc.extracted_text or '',
+            'extractedLength': len(doc.extracted_text) if doc.extracted_text else 0,
+            'processingStatus': 'Processed' if doc.extracted_text else 'Ready',
+            'extractionStatus': 'Indexed' if doc.extracted_text else 'Pending',
+        }
+        
+        if search:
+            if (search not in doc_item['name'].lower() and 
+                search not in doc_item['meetingName'].lower() and 
+                search not in doc_item['fileType'].lower()):
+                continue
+                
+        if type_filter and type_filter != 'All Categories' and type_filter != 'all':
+            if type_filter.lower() not in doc_item['fileType'].lower() and type_filter.lower() not in doc_item['type'].lower():
+                continue
+
+        if meeting_filter and doc_item['meetingId'] != meeting_filter:
+            continue
+
+        results.append(doc_item)
+
+    return Response(results, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 def upload_meeting_media(request, meeting_id):
@@ -278,12 +445,17 @@ def upload_meeting_media(request, meeting_id):
     module = request.data.get('module') or (meeting.module if meeting else 'MM')
     industry = request.data.get('industry') or (meeting.industry if meeting else 'Manufacturing')
 
+    # Pull any attached documents for scope gap analysis
+    docs = MeetingDocument.objects.filter(meeting=meeting) if meeting else []
+    doc_context = "\n\n".join([f"=== File: {d.filename} ===\n{d.extracted_text}" for d in docs if d.extracted_text])
+
     # Pathway 4: AI Post-Meeting Analysis
     analysis_results = analyze_post_meeting_transcript(
         transcript=transcript_text,
         topic=topic,
         module=module,
-        industry=industry
+        industry=industry,
+        document_context=doc_context
     )
 
     if meeting:
@@ -314,11 +486,15 @@ def get_meeting_analysis(request, meeting_id):
     industry = request.data.get('industry') or (meeting.industry if meeting else "Manufacturing")
     transcript = request.data.get('transcript') or (meeting.transcript if meeting else "")
 
+    docs = MeetingDocument.objects.filter(meeting=meeting) if meeting else []
+    doc_context = "\n\n".join([f"=== File: {d.filename} ===\n{d.extracted_text}" for d in docs if d.extracted_text])
+
     analysis = analyze_post_meeting_transcript(
         transcript=transcript,
         topic=topic,
         module=module,
-        industry=industry
+        industry=industry,
+        document_context=doc_context
     )
 
     if meeting:
@@ -456,47 +632,106 @@ def get_all_questions(request):
 def get_knowledge_items(request):
     """
     Dynamic Project Knowledge Base:
-    Aggregates decisions, verified configurations, and architecture rules extracted from meetings.
+    Aggregates decisions, verified configurations, requirements, and architecture rules extracted from meetings.
     """
     search = request.GET.get('search', '').lower()
     cat_filter = request.GET.get('category', '').lower()
 
     knowledge_items = []
-    meetings = Meeting.objects.all()
+    meetings = Meeting.objects.all().order_by('-created_at')
 
     for m in meetings:
-        # Pre-meeting verified items
-        if m.pre_meeting_preparation and isinstance(m.pre_meeting_preparation, dict):
-            for item in m.pre_meeting_preparation.get('alreadyCovered', []):
+        meeting_name = m.name or f"Meeting Session {m.id[:8]}"
+        meeting_date = m.date or 'Recent'
+        meeting_module = m.module or 'General'
+        organizer = m.organizer or m.user_email or 'Project Lead'
+
+        # 1. Post-meeting Decisions
+        if m.post_meeting_analysis and isinstance(m.post_meeting_analysis, dict):
+            for idx, d in enumerate(m.post_meeting_analysis.get('decisions', [])):
+                d_text = d.get('text') or d.get('decision') if isinstance(d, dict) else str(d)
+                if not d_text:
+                    continue
+                d_mod = d.get('module') or meeting_module if isinstance(d, dict) else meeting_module
                 knowledge_items.append({
-                    'id': f"k-cov-{m.id}-{len(knowledge_items)}",
-                    'title': item,
-                    'content': f"Confirmed and verified in scope for meeting '{m.name}'. System verified baseline alignment.",
-                    'category': 'Architecture & Config' if 'architecture' in item.lower() or 'baseline' in item.lower() else 'Business Rules',
-                    'module': m.module or 'Cross-Module',
+                    'id': f"k-dec-{m.id}-{idx}",
+                    'title': d_text,
+                    'content': f"Finalized and agreed during discussion in '{meeting_name}'. Operational scope: {d_mod}.",
+                    'category': 'Decisions',
+                    'module': d_mod,
                     'industry': m.industry or 'General',
-                    'meetingName': m.name,
+                    'meetingName': meeting_name,
                     'meetingId': m.id,
-                    'verifiedBy': 'System Architecture Audit',
-                    'status': 'Verified',
-                    'confidence': 96
+                    'source': f"Meeting: {meeting_name}",
+                    'verifiedBy': organizer,
+                    'status': 'Agreed',
+                    'confidence': 95,
+                    'lastUpdated': meeting_date
                 })
 
-        # Post-meeting decisions & new requirements
-        if m.post_meeting_analysis and isinstance(m.post_meeting_analysis, dict):
-            for d in m.post_meeting_analysis.get('decisions', []):
+            # 2. Post-meeting New Requirements
+            for idx, req in enumerate(m.post_meeting_analysis.get('newRequirements', [])):
+                req_text = req.get('text') or req.get('requirement') if isinstance(req, dict) else str(req)
+                req_id = req.get('id') or f"REQ-{idx+1:02d}" if isinstance(req, dict) else f"REQ-{idx+1:02d}"
+                if not req_text:
+                    continue
                 knowledge_items.append({
-                    'id': f"k-dec-{m.id}-{len(knowledge_items)}",
-                    'title': d.get('decision', 'Finalized Decision'),
-                    'content': f"Agreed decision during discussion on {d.get('topic', m.topic)}. Owner: {d.get('owner', 'Project Lead')}.",
-                    'category': 'Decisions',
-                    'module': m.module or 'Cross-Module',
+                    'id': f"k-req-{m.id}-{idx}",
+                    'title': f"[{req_id}] {req_text}",
+                    'content': f"Identified as necessary deliverable during '{meeting_name}'. Must be incorporated into architecture specifications.",
+                    'category': 'Requirements',
+                    'module': meeting_module,
                     'industry': m.industry or 'General',
-                    'meetingName': m.name,
+                    'meetingName': meeting_name,
                     'meetingId': m.id,
-                    'verifiedBy': d.get('owner', 'Project Lead'),
-                    'status': 'Agreed',
-                    'confidence': 94
+                    'source': f"Meeting: {meeting_name}",
+                    'verifiedBy': 'AI Session Audit',
+                    'status': 'Verified',
+                    'confidence': 93,
+                    'lastUpdated': meeting_date
+                })
+
+            # 3. Post-meeting Identified Risks
+            for idx, r in enumerate(m.post_meeting_analysis.get('risks', [])):
+                r_text = r.get('text') or r.get('risk') if isinstance(r, dict) else str(r)
+                r_sev = r.get('severity') or 'High' if isinstance(r, dict) else 'High'
+                if not r_text:
+                    continue
+                knowledge_items.append({
+                    'id': f"k-risk-{m.id}-{idx}",
+                    'title': r_text,
+                    'content': f"Flagged risk from discussion in '{meeting_name}'. Potential impact: {r_sev} severity.",
+                    'category': 'Risks & Issues',
+                    'module': meeting_module,
+                    'industry': m.industry or 'General',
+                    'meetingName': meeting_name,
+                    'meetingId': m.id,
+                    'source': f"Meeting: {meeting_name}",
+                    'verifiedBy': 'Risk Review',
+                    'status': f'{r_sev} Priority',
+                    'confidence': 91,
+                    'lastUpdated': meeting_date
+                })
+
+        # 4. Pre-meeting Verified Architecture & Scope
+        if m.pre_meeting_preparation and isinstance(m.pre_meeting_preparation, dict):
+            for idx, item in enumerate(m.pre_meeting_preparation.get('alreadyCovered', [])):
+                if not item:
+                    continue
+                knowledge_items.append({
+                    'id': f"k-cov-{m.id}-{idx}",
+                    'title': item,
+                    'content': f"Confirmed and verified in scope for meeting '{meeting_name}'. System baseline alignment verified.",
+                    'category': 'Architecture & Scope',
+                    'module': meeting_module,
+                    'industry': m.industry or 'General',
+                    'meetingName': meeting_name,
+                    'meetingId': m.id,
+                    'source': f"Preparation: {meeting_name}",
+                    'verifiedBy': 'System Architecture Audit',
+                    'status': 'Verified',
+                    'confidence': 96,
+                    'lastUpdated': meeting_date
                 })
 
     if not knowledge_items:
@@ -505,35 +740,45 @@ def get_knowledge_items(request):
                 'id': 'k-base-1',
                 'title': 'Multi-Plant Material Valuation Standard',
                 'content': 'Standardized valuation classes mapped across central manufacturing and regional warehouse locations.',
-                'category': 'Business Rules',
+                'category': 'Architecture & Scope',
                 'module': 'MM',
                 'industry': 'Manufacturing',
                 'meetingName': 'Initial Scope Alignment',
+                'meetingId': '',
+                'source': 'Enterprise Blueprint',
                 'verifiedBy': 'Lead Architect',
                 'status': 'Verified',
-                'confidence': 95
+                'confidence': 95,
+                'lastUpdated': '2026-09-10'
             },
             {
                 'id': 'k-base-2',
                 'title': 'Foreign Currency Revaluation Methodology',
                 'content': 'Open AR/AP line items revalued at month-end based on central treasury exchange rate tables.',
-                'category': 'Architecture & Config',
+                'category': 'Decisions',
                 'module': 'FI',
                 'industry': 'General',
                 'meetingName': 'Finance Kickoff',
+                'meetingId': '',
+                'source': 'Treasury Governance',
                 'verifiedBy': 'Finance Lead',
-                'status': 'Verified',
-                'confidence': 93
+                'status': 'Agreed',
+                'confidence': 94,
+                'lastUpdated': '2026-09-12'
             }
         ]
 
     # Filter
     filtered = []
     for k in knowledge_items:
-        if search and search not in k['title'].lower() and search not in k['content'].lower() and search not in k['module'].lower():
+        if search and (search not in k['title'].lower() and 
+                       search not in k['content'].lower() and 
+                       search not in k['module'].lower() and
+                       search not in k['meetingName'].lower()):
             continue
-        if cat_filter and cat_filter != 'all' and cat_filter != k['category'].lower():
-            continue
+        if cat_filter and cat_filter != 'all' and cat_filter != 'all categories':
+            if cat_filter not in k['category'].lower():
+                continue
         filtered.append(k)
 
     return Response(filtered, status=status.HTTP_200_OK)

@@ -1,5 +1,22 @@
 from rest_framework import serializers
-from .models import Meeting
+from .models import Meeting, MeetingDocument
+
+class MeetingDocumentSerializer(serializers.ModelSerializer):
+    meetingId = serializers.CharField(source='meeting_id', read_only=True)
+    fileUrl = serializers.FileField(source='file', read_only=True)
+    fileType = serializers.CharField(source='file_type', read_only=True)
+    fileSize = serializers.CharField(source='file_size', read_only=True)
+    uploadedAt = serializers.DateTimeField(source='uploaded_at', read_only=True)
+
+    extractedText = serializers.CharField(source='extracted_text', read_only=True)
+
+    class Meta:
+        model = MeetingDocument
+        fields = [
+            'id', 'meeting', 'meetingId', 'file', 'fileUrl',
+            'filename', 'fileType', 'file_type', 'fileSize', 'file_size',
+            'extracted_text', 'extractedText', 'uploadedAt', 'uploaded_at'
+        ]
 
 class MeetingSerializer(serializers.ModelSerializer):
     projectId = serializers.CharField(source='project_id', required=False, allow_null=True)

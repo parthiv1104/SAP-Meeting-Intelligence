@@ -15,7 +15,6 @@ const NAV = [
   { to: '/questions', label: 'Questions', icon: CircleHelp },
   { to: '/knowledge', label: 'Knowledge', icon: BrainCog },
   { to: '/documents', label: 'Documents', icon: FileText },
-  { to: '/reports', label: 'Reports', icon: BarChart3 },
 ];
 
 export default function Sidebar({ collapsed, onToggle }) {

@@ -14,7 +14,6 @@ import ProjectTeamTab from './pages/project/ProjectTeamTab';
 import Meetings from './pages/Meetings';
 import MeetingDetail from './pages/MeetingDetail';
 import MeetingPreparation from './pages/MeetingPreparation';
-import MeetingLive from './pages/MeetingLive';
 import MeetingAnalysis from './pages/MeetingAnalysis';
 
 import Questions from './pages/Questions';
@@ -26,7 +25,6 @@ import FrequentlyMissed from './pages/FrequentlyMissed';
 import Knowledge from './pages/Knowledge';
 import KnowledgeTimeline from './pages/KnowledgeTimeline';
 import Documents from './pages/Documents';
-import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 
 export default function App() {
@@ -61,7 +59,6 @@ export default function App() {
             <Route path="/meetings" element={<Meetings />} />
             <Route path="/meetings/:id" element={<MeetingDetail />} />
             <Route path="/meetings/:id/preparation" element={<MeetingPreparation />} />
-            <Route path="/meetings/:id/live" element={<MeetingLive />} />
             <Route path="/meetings/:id/analysis" element={<MeetingAnalysis />} />
 
             <Route path="/questions" element={<Questions />} />
@@ -73,7 +70,7 @@ export default function App() {
             <Route path="/knowledge" element={<Knowledge />} />
             <Route path="/knowledge/timeline" element={<KnowledgeTimeline />} />
             <Route path="/documents" element={<Documents />} />
-            <Route path="/reports" element={<Reports />} />
+            <Route path="/reports" element={<Navigate to="/dashboard" replace />} />
             <Route path="/settings" element={<Settings />} />
 
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
