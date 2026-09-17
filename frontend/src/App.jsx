@@ -6,10 +6,6 @@ import AppShell from './components/layout/AppShell';
 
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
-import Projects from './pages/Projects';
-import ProjectNew from './pages/ProjectNew';
-import ProjectOverviewTab from './pages/project/ProjectOverviewTab';
-import ProjectTeamTab from './pages/project/ProjectTeamTab';
 
 import Meetings from './pages/Meetings';
 import MeetingDetail from './pages/MeetingDetail';
@@ -47,14 +43,8 @@ export default function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
 
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/projects/new" element={<ProjectNew />} />
-            <Route path="/projects/:id" element={<ProjectOverviewTab />} />
-            <Route path="/projects/:id/team" element={<ProjectTeamTab />} />
-            <Route path="/projects/:id/meetings" element={<Meetings />} />
-            <Route path="/projects/:id/questions" element={<Questions />} />
-            <Route path="/projects/:id/knowledge" element={<Knowledge />} />
-            <Route path="/projects/:id/documents" element={<Documents />} />
+            <Route path="/projects" element={<Navigate to="/meetings" replace />} />
+            <Route path="/projects/*" element={<Navigate to="/meetings" replace />} />
 
             <Route path="/meetings" element={<Meetings />} />
             <Route path="/meetings/:id" element={<MeetingDetail />} />

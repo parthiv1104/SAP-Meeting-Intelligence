@@ -72,3 +72,54 @@ export function getMeetingDomain(meeting) {
     defaultTopics: ['Architecture & Scope', 'Integration & APIs', 'Performance & Security', 'Milestones & Delivery']
   };
 }
+
+export function getDynamicMeetingTag(meeting) {
+  const name = meeting?.name || meeting?.title || '';
+  const topic = meeting?.topic || '';
+  const module = (meeting?.module || '').trim();
+  const combined = ` ${module} ${topic} ${name} `.toUpperCase();
+
+  // 1. Explicit SAP Modules
+  for (const mod of ['MM', 'FI', 'CO', 'SD', 'PP', 'QM', 'PM', 'EWM', 'HCM', 'PS', 'FICO', 'ABAP', 'RICEFW']) {
+    if (module.toUpperCase() === mod || module.toUpperCase() === `SAP ${mod}` || combined.includes(` ${mod} `) || combined.includes(`(${mod})`)) {
+      return { label: `SAP ${mod}`, tone: 'brand' };
+    }
+  }
+
+  // 2. Specific SAP Platforms & Workflows
+  if (combined.includes('BTP')) return { label: 'SAP BTP', tone: 'brand' };
+  if (combined.includes('B1') || combined.includes('BUSINESS ONE')) return { label: 'SAP B1', tone: 'brand' };
+  if (combined.includes('S/4HANA') || combined.includes('S4HANA')) return { label: 'SAP S/4HANA', tone: 'brand' };
+  if (combined.includes('PROCUREMENT') || combined.includes('PURCHASING') || combined.includes('COSTING')) return { label: 'SAP MM / Costing', tone: 'brand' };
+  if (combined.includes('SAP')) return { label: 'SAP Enterprise', tone: 'brand' };
+
+  // 3. AI & Intelligence
+  if (['AI', 'INTELLIGENCE', 'LLM', 'GPT', 'ML', 'MACHINE LEARNING', 'MODEL', 'VISION', 'NLP', 'WHISPER'].some(k => combined.includes(k))) {
+    return { label: 'Artificial Intelligence', tone: 'brand' };
+  }
+
+  // 4. Technology / Compliance / Engineering
+  if (combined.includes('COMPLIANCE') || combined.includes('EY') || combined.includes('AUDIT') || combined.includes('GOVERNANCE')) {
+    return { label: 'Compliance & Tech', tone: 'neutral' };
+  }
+  if (combined.includes('VIBE CODING') || combined.includes('CODING') || combined.includes('DEV') || combined.includes('SOFTWARE') || combined.includes('ENGINEERING')) {
+    return { label: 'Software Dev', tone: 'neutral' };
+  }
+  if (combined.includes('CERTIFICATION') || combined.includes('ENABLEMENT') || combined.includes('TRAINING') || combined.includes('DRIVE')) {
+    return { label: 'Enablement', tone: 'neutral' };
+  }
+  if (combined.includes('DEMO') || combined.includes('SOLUTIONS')) {
+    return { label: 'Solutions Demo', tone: 'neutral' };
+  }
+
+  // 5. Fallbacks
+  if (module && module !== 'Cross-Module') {
+    return { label: module, tone: 'neutral' };
+  }
+  if (topic && topic !== 'Cross-Module' && topic !== name) {
+    return { label: topic.length > 20 ? `${topic.slice(0, 18)}...` : topic, tone: 'neutral' };
+  }
+
+  return { label: 'Strategy & Ops', tone: 'neutral' };
+}
+

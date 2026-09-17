@@ -7,8 +7,9 @@ import MetricCard from '../components/dashboard/MetricCard';
 import Modal from '../components/ui/Modal';
 import { SkeletonGrid } from '../components/ui/Skeleton';
 import { meetingService } from '../services/meetingService';
-import { AlertTriangle, UploadCloud, FileText, ArrowLeft, Loader2, Sparkles, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, UploadCloud, FileText, ArrowLeft, Loader2, Sparkles, RefreshCw, CheckCircle2, Printer } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
+import AiProcessingLoader from '../components/ui/AiProcessingLoader';
 
 import { getMeetingDomain } from '../utils/domainUtils';
 
@@ -108,7 +109,28 @@ export default function MeetingAnalysis() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* Corporate PDF Printable Letterhead (Visible only on print/export) */}
+      <div className="print-only border-b-2 border-brand-600 pb-4 mb-5 space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-700">VC ERP Consulting Group • ProjectIQ Intelligence</p>
+            <h1 className="text-xl font-extrabold text-ink-900 mt-1">EXECUTIVE POST-MEETING AUDIT &amp; MINUTES OF MEETING (MOM)</h1>
+          </div>
+          <div className="text-right text-xs text-ink-500">
+            <p className="font-semibold text-ink-800">CONFIDENTIAL // CLIENT ADVISORY</p>
+            <p>Audit Generated: {new Date().toLocaleDateString()}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2 pt-2 text-xs border-t border-ink-100">
+          <div><span className="text-ink-400">Meeting:</span> <p className="font-bold text-ink-900">{a.meetingName || meeting?.name}</p></div>
+          <div><span className="text-ink-400">Engagement:</span> <p className="font-bold text-ink-900">{a.project || meeting?.name}</p></div>
+          <div><span className="text-ink-400">Session Date:</span> <p className="font-bold text-ink-900">{a.date || meeting?.date || 'Completed'}</p></div>
+          <div><span className="text-ink-400">Questions Answered:</span> <p className="font-bold text-emerald-700">{summary.answered || 0} / {summary.questionsIdentified || 0}</p></div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-4 print-hidden">
         <div>
           <Link to={`/meetings/${id}`} className="mb-1 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline">
             <ArrowLeft size={12} /> Back to Meeting Overview
@@ -127,6 +149,15 @@ export default function MeetingAnalysis() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            icon={Printer}
+            onClick={() => window.print()}
+            title="Export this formal post-meeting audit & MOM report as a professional PDF"
+          >
+            Export PDF Audit (MOM)
+          </Button>
+
           {meeting?.transcript && (
             <Button
               variant="secondary"
@@ -280,25 +311,32 @@ export default function MeetingAnalysis() {
         title="Upload Recording / Transcript for AI Re-Analysis"
       >
         <form onSubmit={handleFileUpload} className="space-y-4">
-          <div className="rounded-xl border-2 border-dashed border-ink-200 p-6 text-center hover:border-brand-400 transition-colors">
-            <UploadCloud className="mx-auto h-10 w-10 text-brand-600" />
-            <p className="mt-2 text-sm font-medium text-ink-800">
-              {selectedFile ? selectedFile.name : 'Select meeting media (.mp4, .mp3, .wav, .vtt, .txt)'}
-            </p>
-            <input
-              type="file"
-              id="analysisMediaUpload"
-              accept=".mp4,.mkv,.mov,.avi,.mp3,.wav,.m4a,.vtt,.txt"
-              className="hidden"
-              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+          {uploading ? (
+            <AiProcessingLoader
+              title="Auditing Meeting with AI"
+              initialMessage="Uploading media & extracting audio streams..."
             />
-            <label
-              htmlFor="analysisMediaUpload"
-              className="mt-3 inline-block cursor-pointer rounded-lg bg-ink-100 px-3.5 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-200 transition-colors"
-            >
-              Browse Files
-            </label>
-          </div>
+          ) : (
+            <div className="rounded-xl border-2 border-dashed border-ink-200 p-6 text-center hover:border-brand-400 transition-colors">
+              <UploadCloud className="mx-auto h-10 w-10 text-brand-600" />
+              <p className="mt-2 text-sm font-medium text-ink-800">
+                {selectedFile ? selectedFile.name : 'Select meeting media (.mp4, .mp3, .wav, .vtt, .txt)'}
+              </p>
+              <input
+                type="file"
+                id="analysisMediaUpload"
+                accept=".mp4,.mkv,.mov,.avi,.mp3,.wav,.m4a,.vtt,.txt"
+                className="hidden"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              />
+              <label
+                htmlFor="analysisMediaUpload"
+                className="mt-3 inline-block cursor-pointer rounded-lg bg-ink-100 px-3.5 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-200 transition-colors"
+              >
+                Browse Files
+              </label>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button
@@ -312,7 +350,8 @@ export default function MeetingAnalysis() {
             <Button
               type="submit"
               disabled={!selectedFile || uploading}
-              icon={uploading ? Loader2 : UploadCloud}
+              loading={uploading}
+              icon={UploadCloud}
             >
               {uploading ? 'Transcribing & Analyzing...' : 'Run Analysis'}
             </Button>

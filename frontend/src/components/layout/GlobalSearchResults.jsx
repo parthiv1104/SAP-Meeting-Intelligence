@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { meetingService } from '../../services/meetingService';
-import { projectService } from '../../services/projectService';
 import { questionService } from '../../services/questionService';
 import { knowledgeService } from '../../services/knowledgeService';
+import { documentService } from '../../services/documentService';
 
 function matches(text, query) {
   return text?.toLowerCase().includes(query.toLowerCase());
@@ -10,30 +10,24 @@ function matches(text, query) {
 
 export default function GlobalSearchResults({ query, onNavigate }) {
   const [meetings, setMeetings] = useState([]);
-  const [projects, setProjects] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [knowledge, setKnowledge] = useState([]);
+  const [documents, setDocuments] = useState([]);
 
   useEffect(() => {
     if (!query || query.trim().length < 2) return;
     meetingService.list({ search: query }).then(setMeetings);
-    projectService.list().then(setProjects);
     questionService.list({ search: query }).then(setQuestions);
     knowledgeService.list({ search: query }).then(setKnowledge);
+    documentService.list({ search: query }).then(setDocuments).catch(() => []);
   }, [query]);
 
   const groups = [
     {
-      label: 'Projects',
-      items: (projects || []).filter((p) => matches(p.name, query) || matches(p.client, query))
-        .slice(0, 3)
-        .map((p) => ({ title: p.name, subtitle: p.client, path: `/projects/${p.id}` })),
-    },
-    {
       label: 'Meetings',
       items: (meetings || []).filter((m) => matches(m.name, query) || matches(m.topic, query))
         .slice(0, 4)
-        .map((m) => ({ title: m.name, subtitle: m.topic, path: `/meetings/${m.id}` })),
+        .map((m) => ({ title: m.name, subtitle: m.topic || m.module, path: `/meetings/${m.id}` })),
     },
     {
       label: 'Questions',
@@ -42,10 +36,16 @@ export default function GlobalSearchResults({ query, onNavigate }) {
         .map((q) => ({ title: q.text || q.question, subtitle: q.module, path: `/questions/${q.id}` })),
     },
     {
-      label: 'Knowledge',
+      label: 'Knowledge & Decisions',
       items: (knowledge || []).filter((k) => matches(k.title, query) || matches(k.content, query))
         .slice(0, 3)
         .map((k) => ({ title: k.title, subtitle: k.category, path: '/knowledge' })),
+    },
+    {
+      label: 'Documents',
+      items: (documents || []).filter((d) => matches(d.name || d.filename, query) || matches(d.meetingName, query))
+        .slice(0, 3)
+        .map((d) => ({ title: d.name || d.filename, subtitle: d.meetingName, path: '/documents' })),
     },
   ].filter((g) => g.items.length > 0);
 

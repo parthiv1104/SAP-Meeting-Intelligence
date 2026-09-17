@@ -18,6 +18,7 @@ import { SkeletonGrid } from '../components/ui/Skeleton';
 import { documentService } from '../services/documentService';
 import { meetingService } from '../services/meetingService';
 import { useToast } from '../hooks/useToast';
+import AiProcessingLoader from '../components/ui/AiProcessingLoader';
 
 const FILE_TYPES = ['All Types', 'PDF', 'Word', 'Excel', 'Text'];
 
@@ -443,7 +444,7 @@ export default function Documents() {
       <Modal
         open={uploadOpen}
         onClose={() => !uploading && setUploadOpen(false)}
-        title="Upload Scope & Specification Document"
+        title="Upload Scope &amp; Specification Document"
         footer={
           <>
             <Button variant="secondary" disabled={uploading} onClick={() => setUploadOpen(false)}>
@@ -452,7 +453,8 @@ export default function Documents() {
             <Button
               onClick={handleUploadSubmit}
               disabled={uploading || !uploadFile || !selectedMeetingId}
-              icon={uploading ? Loader2 : Upload}
+              loading={uploading}
+              icon={Upload}
             >
               {uploading ? 'Extracting & Ingesting...' : 'Upload & Process with AI'}
             </Button>
@@ -464,55 +466,62 @@ export default function Documents() {
             Attach a project BRD, SRS, architecture spec, or spreadsheet to a specific meeting. The system will parse the text and formulate tailored discovery questions.
           </p>
 
-          {/* Select Target Meeting */}
-          <div>
-            <label className="block text-xs font-semibold text-ink-700 mb-1">
-              Select Target Meeting <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={selectedMeetingId}
-              onChange={(e) => setSelectedMeetingId(e.target.value)}
-              disabled={uploading}
-              className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
-              required
-            >
-              {meetings.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name || m.title} ({m.module || 'General'}) — {m.date || 'Scheduled'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* File Selector */}
-          <div className="rounded-xl border-2 border-dashed border-ink-200 p-6 text-center hover:border-brand-400 transition-colors">
-            <Upload className="mx-auto h-10 w-10 text-brand-600" />
-            <p className="mt-2 text-sm font-medium text-ink-800">
-              {uploadFile ? uploadFile.name : 'Select document file'}
-            </p>
-            <p className="text-xs text-ink-400">PDF, DOCX, XLSX, CSV, TXT, VTT up to 200MB</p>
-
-            <input
-              type="file"
-              id="globalDocUploadInput"
-              accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.vtt"
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+          {uploading ? (
+            <AiProcessingLoader
+              title="Extracting Document Context"
+              initialMessage="Parsing file structure and extracting domain text..."
+              steps={[
+                { label: 'Document Binary Upload & Validation', icon: Upload, duration: 1500 },
+                { label: 'Extracting Text & Data Tables', icon: FileText, duration: 3500 },
+                { label: 'Vector Indexing & Updating AI Prep Cache', icon: Sparkles, duration: 5500 },
+              ]}
             />
-            <label
-              htmlFor="globalDocUploadInput"
-              className="mt-3 inline-block cursor-pointer rounded-lg bg-ink-100 px-3.5 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-200 transition-colors"
-            >
-              Browse Local Files
-            </label>
-          </div>
+          ) : (
+            <>
+              {/* Select Target Meeting */}
+              <div>
+                <label className="block text-xs font-semibold text-ink-700 mb-1">
+                  Select Target Meeting <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedMeetingId}
+                  onChange={(e) => setSelectedMeetingId(e.target.value)}
+                  disabled={uploading}
+                  className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+                  required
+                >
+                  {meetings.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name || m.title} ({m.module || 'General'}) — {m.date || 'Scheduled'}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          {uploading && (
-            <div className="flex items-center gap-2.5 rounded-lg bg-brand-50 p-3 text-xs font-medium text-brand-700">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Extracting document text and updating AI preparation cache...</span>
-            </div>
+              {/* File Selector */}
+              <div className="rounded-xl border-2 border-dashed border-ink-200 p-6 text-center hover:border-brand-400 transition-colors">
+                <Upload className="mx-auto h-10 w-10 text-brand-600" />
+                <p className="mt-2 text-sm font-medium text-ink-800">
+                  {uploadFile ? uploadFile.name : 'Select document file'}
+                </p>
+                <p className="text-xs text-ink-400">PDF, DOCX, XLSX, CSV, TXT, VTT up to 200MB</p>
+
+                <input
+                  type="file"
+                  id="globalDocUploadInput"
+                  accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.vtt"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                />
+                <label
+                  htmlFor="globalDocUploadInput"
+                  className="mt-3 inline-block cursor-pointer rounded-lg bg-ink-100 px-3.5 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-200 transition-colors"
+                >
+                  Browse Local Files
+                </label>
+              </div>
+            </>
           )}
         </form>
       </Modal>

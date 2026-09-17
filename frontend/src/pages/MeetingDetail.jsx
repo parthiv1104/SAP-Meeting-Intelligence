@@ -11,17 +11,16 @@ import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import { SkeletonGrid } from '../components/ui/Skeleton';
 import { meetingService } from '../services/meetingService';
-import { projectService } from '../services/projectService';
 import { useToast } from '../hooks/useToast';
 import { industries, sapModules } from '../config/constants';
 import { getMeetingDomain } from '../utils/domainUtils';
+import AiProcessingLoader from '../components/ui/AiProcessingLoader';
 
 export default function MeetingDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
   const [meeting, setMeeting] = useState(null);
-  const [project, setProject] = useState(null);
 
   // Meeting Documents (Isolated per meeting)
   const [documents, setDocuments] = useState([]);
@@ -60,7 +59,6 @@ export default function MeetingDetail() {
           module: m.module || 'Cross-Module',
           industry: m.industry || 'General',
         });
-        if (m.projectId) projectService.get(m.projectId).then(setProject);
       }
     });
   };
@@ -139,7 +137,7 @@ export default function MeetingDetail() {
       const res = await meetingService.uploadMedia(id, selectedFile, {
         topic: meeting?.topic || meeting?.name,
         module: meeting?.module || 'Cross-Module',
-        industry: project?.industry || meeting?.industry || 'General',
+        industry: meeting?.industry || 'General',
       });
 
       toast?.('Meeting recording processed and analyzed successfully!', 'success');
@@ -190,7 +188,7 @@ export default function MeetingDetail() {
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-600">
               <Building2 size={13} />
-              <span>{project?.name || domainInfo.eyebrow}</span>
+              <span>{domainInfo.eyebrow}</span>
             </div>
             <h1 className="mt-1 text-xl font-bold text-ink-900">{meeting.name || meeting.title}</h1>
             
@@ -522,32 +520,32 @@ export default function MeetingDetail() {
             Video files are automatically converted via ffmpeg and transcribed with OpenAI Whisper.
           </p>
 
-          <div className="rounded-xl border-2 border-dashed border-ink-200 p-6 text-center hover:border-brand-400 transition-colors">
-            <UploadCloud className="mx-auto h-10 w-10 text-brand-600" />
-            <p className="mt-2 text-sm font-medium text-ink-800">
-              {selectedFile ? selectedFile.name : 'Select or drag & drop meeting media'}
-            </p>
-            <p className="text-xs text-ink-400">MP4, MP3, WAV, M4A, VTT, TXT up to 500MB</p>
-
-            <input
-              type="file"
-              id="mediaUploadInput"
-              accept=".mp4,.mkv,.mov,.avi,.mp3,.wav,.m4a,.vtt,.txt"
-              className="hidden"
-              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+          {uploading ? (
+            <AiProcessingLoader
+              title="Enterprise AI Pipeline Active"
+              initialMessage={uploadProgressMsg || "Extracting audio & executing Whisper AI transcription..."}
             />
-            <label
-              htmlFor="mediaUploadInput"
-              className="mt-3 inline-block cursor-pointer rounded-lg bg-ink-100 px-3.5 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-200 transition-colors"
-            >
-              Browse Files
-            </label>
-          </div>
+          ) : (
+            <div className="rounded-xl border-2 border-dashed border-ink-200 p-6 text-center hover:border-brand-400 transition-colors">
+              <UploadCloud className="mx-auto h-10 w-10 text-brand-600" />
+              <p className="mt-2 text-sm font-medium text-ink-800">
+                {selectedFile ? selectedFile.name : 'Select or drag & drop meeting media'}
+              </p>
+              <p className="text-xs text-ink-400">MP4, MP3, WAV, M4A, VTT, TXT up to 500MB</p>
 
-          {uploading && (
-            <div className="flex items-center gap-2.5 rounded-lg bg-brand-50 p-3 text-xs font-medium text-brand-700">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>{uploadProgressMsg}</span>
+              <input
+                type="file"
+                id="mediaUploadInput"
+                accept=".mp4,.mkv,.mov,.avi,.mp3,.wav,.m4a,.vtt,.txt"
+                className="hidden"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              />
+              <label
+                htmlFor="mediaUploadInput"
+                className="mt-3 inline-block cursor-pointer rounded-lg bg-ink-100 px-3.5 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-200 transition-colors"
+              >
+                Browse Files
+              </label>
             </div>
           )}
 
@@ -563,7 +561,8 @@ export default function MeetingDetail() {
             <Button
               type="submit"
               disabled={!selectedFile || uploading}
-              icon={uploading ? Loader2 : UploadCloud}
+              loading={uploading}
+              icon={UploadCloud}
             >
               {uploading ? 'Processing AI Pipeline...' : 'Process & Generate Intelligence'}
             </Button>

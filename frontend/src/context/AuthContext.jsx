@@ -61,6 +61,23 @@ export function AuthProvider({ children }) {
     throw new Error(res?.error || 'Registration failed.');
   };
 
+  const updateProfile = async (profileData) => {
+    try {
+      const res = await authService.updateProfile(profileData);
+      if (res?.user) {
+        setUser(res.user);
+        localStorage.setItem('auth_user', JSON.stringify(res.user));
+        return res.user;
+      }
+    } catch (err) {
+      console.warn('Backend profile update warning:', err);
+    }
+    const updated = { ...(user || {}), ...profileData };
+    setUser(updated);
+    localStorage.setItem('auth_user', JSON.stringify(updated));
+    return updated;
+  };
+
   const logout = async () => {
     await authService.logout();
     setToken(null);
@@ -74,6 +91,7 @@ export function AuthProvider({ children }) {
     loading,
     login,
     register,
+    updateProfile,
     logout,
   };
 

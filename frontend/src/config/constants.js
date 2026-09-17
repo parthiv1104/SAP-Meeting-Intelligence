@@ -12,7 +12,6 @@ export const organization = {
 
 export const currentUser = {
   name: 'Parthiv Dudhrejiya',
-  role: 'Project Lead',
   email: 'parthiv.dudhrejiya@vc-erp.com',
   initials: 'PD',
 };
@@ -51,7 +50,6 @@ export const defaultTeamMembers = [
   {
     id: 'parthiv-lead',
     name: 'Parthiv Dudhrejiya',
-    role: 'Project Lead & AI Solutions Architect',
     email: 'parthiv.dudhrejiya@vc-erp.com',
     modules: ['Cross-Module', 'AI & Data', 'MM'],
     experience: '8+ yrs',
@@ -62,7 +60,6 @@ export const defaultTeamMembers = [
   {
     id: 'rahul-shah',
     name: 'Rahul Shah',
-    role: 'Principal SAP Consultant',
     email: 'rahul.shah@vc-erp.com',
     modules: ['MM', 'PP', 'QM'],
     experience: '10+ yrs',
@@ -73,7 +70,6 @@ export const defaultTeamMembers = [
   {
     id: 'meera-iyer',
     name: 'Meera Iyer',
-    role: 'Lead Finance & Controlling Architect',
     email: 'meera.iyer@vc-erp.com',
     modules: ['FI', 'CO'],
     experience: '9+ yrs',
@@ -84,7 +80,6 @@ export const defaultTeamMembers = [
   {
     id: 'arjun-nair',
     name: 'Arjun Nair',
-    role: 'Lead Technical Consultant & Integration Specialist',
     email: 'arjun.nair@vc-erp.com',
     modules: ['SD', 'Integration', 'ABAP'],
     experience: '7+ yrs',

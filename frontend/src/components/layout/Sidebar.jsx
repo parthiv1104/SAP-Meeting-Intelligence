@@ -1,16 +1,14 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, FolderKanban, CalendarClock, CircleHelp, BrainCog,
+  LayoutDashboard, CalendarClock, CircleHelp, BrainCog,
   FileText, BarChart3, Settings, ChevronsLeft, ChevronsRight, LogOut, Building2,
 } from 'lucide-react';
-import LogoMark from '../ui/LogoMark';
 import Avatar from '../ui/Avatar';
 import { useAuth } from '../../context/AuthContext';
 import { organization } from '../../config/constants';
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/projects', label: 'Projects', icon: FolderKanban },
   { to: '/meetings', label: 'Meetings', icon: CalendarClock },
   { to: '/questions', label: 'Questions', icon: CircleHelp },
   { to: '/knowledge', label: 'Knowledge', icon: BrainCog },
@@ -27,22 +25,21 @@ export default function Sidebar({ collapsed, onToggle }) {
   };
 
   const displayName = user?.name || user?.username || 'Consultant';
-  const displayRole = user?.role || 'Project Lead';
 
   return (
     <aside
       className={`sticky top-0 flex h-screen shrink-0 flex-col border-r border-ink-100 bg-white transition-all ${
-        collapsed ? 'w-[68px]' : 'w-[240px]'
+        collapsed ? 'w-[64px]' : 'w-[218px]'
       }`}
     >
-      <div className="flex items-center gap-2.5 px-4 py-5">
-        <LogoMark size={28} />
-        {!collapsed && (
-          <div className="leading-tight">
-            <p className="text-sm font-bold tracking-tight text-ink-900">ProjectIQ</p>
-            <p className="text-[11px] text-ink-400">Meeting Intelligence</p>
-          </div>
-        )}
+      <div className={`flex items-center ${collapsed ? 'px-2 py-3 justify-center' : 'px-3.5 pt-4 pb-3 mb-2.5'}`}>
+        <NavLink to="/dashboard" className="flex items-center w-full">
+          <img
+            src="/logo.png"
+            alt="VC ERP Consulting"
+            className={collapsed ? "h-7 w-auto max-w-[44px] object-contain" : "w-full h-auto max-h-14 object-contain object-left"}
+          />
+        </NavLink>
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2.5">
@@ -83,7 +80,6 @@ export default function Sidebar({ collapsed, onToggle }) {
           {!collapsed && (
             <div className="min-w-0 leading-tight">
               <p className="truncate text-sm font-medium text-ink-800">{displayName}</p>
-              <p className="truncate text-xs text-ink-400">{displayRole}</p>
             </div>
           )}
         </div>

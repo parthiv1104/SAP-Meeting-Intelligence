@@ -1,3 +1,5 @@
+import { Loader2 } from 'lucide-react';
+
 const VARIANTS = {
   primary: 'bg-brand-600 text-white hover:bg-brand-700 focus-visible:outline-brand-600',
   secondary: 'bg-white text-ink-700 border border-ink-200 hover:bg-ink-50',
@@ -17,16 +19,29 @@ export default function Button({
   variant = 'primary',
   size = 'md',
   icon: Icon,
+  iconClassName = '',
+  loading = false,
+  disabled = false,
   className = '',
   as: As = 'button',
   ...rest
 }) {
+  const isSpinner = loading || Icon === Loader2;
+  const EffectiveIcon = loading ? Loader2 : Icon;
+
   return (
     <As
-      className={`focus-ring inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      disabled={disabled || loading}
+      className={`focus-ring inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...rest}
     >
-      {Icon && <Icon size={15} strokeWidth={2} />}
+      {EffectiveIcon && (
+        <EffectiveIcon
+          size={15}
+          strokeWidth={2}
+          className={`${isSpinner ? 'animate-spin' : ''} ${iconClassName}`}
+        />
+      )}
       {children}
     </As>
   );

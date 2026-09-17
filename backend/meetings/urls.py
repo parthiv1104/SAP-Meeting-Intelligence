@@ -12,7 +12,8 @@ from .views import (
     get_dashboard_summary,
     meeting_documents_view,
     delete_meeting_document,
-    get_all_documents
+    get_all_documents,
+    single_meeting_detail
 )
 
 router = DefaultRouter()
@@ -32,5 +33,6 @@ urlpatterns = [
     path('<path:meeting_id>/documents/<path:doc_id>/', delete_meeting_document, name='delete_meeting_document'),
     path('<path:meeting_id>/upload-media/', upload_meeting_media, name='upload_meeting_media'),
     path('<path:meeting_id>/analysis/', get_meeting_analysis, name='get_meeting_analysis'),
+    path('<path:meeting_id>/', single_meeting_detail, name='single_meeting_detail'),
     path('', include(router.urls)),
 ]

@@ -113,7 +113,7 @@ Required JSON Structure:
     {{"name": "Consultant / Lead", "role": "Project Lead"}},
     {{"name": "Client / Stakeholder", "role": "{industry} Domain Lead"}}
   ],
-  "topics": ["Relevant Topic 1", "Relevant Topic 2", "Relevant Topic 3", "Relevant Topic 4"],
+  "topics": ["Focus Topic 1", "Focus Topic 2", "Focus Topic 3", "Focus Topic 4", "Focus Topic 5"],
   "readiness": {{
     "overall": 92,
     "projectKnowledge": 95,
@@ -193,6 +193,10 @@ Required JSON Structure:
         )
         data = json.loads(response.choices[0].message.content)
         
+        # Enforce maximum 5 focus topics
+        if data.get("topics") and isinstance(data["topics"], list):
+            data["topics"] = data["topics"][:5]
+
         # Validate that questions exist and are not empty
         if not data.get("recommendedQuestions") or len(data["recommendedQuestions"]) < 3:
             return _fallback_pre_meeting_prep(topic, industry, module, project_name, meeting_name, is_sap)

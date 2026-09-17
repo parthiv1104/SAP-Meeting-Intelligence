@@ -17,7 +17,6 @@ export default function Auth({ initialMode = 'login' }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('Project Lead');
 
   const { login, register } = useAuth();
   const navigate = useNavigate();
@@ -33,7 +32,7 @@ export default function Auth({ initialMode = 'login' }) {
       if (isLogin) {
         await login({ email, password });
       } else {
-        await register({ name, email, password, role });
+        await register({ name, email, password });
       }
       navigate(from, { replace: true });
     } catch (err) {
@@ -138,16 +137,16 @@ export default function Auth({ initialMode = 'login' }) {
             
             {/* Logo & Header */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <LogoMark size={36} />
-                <div>
-                  <span className="text-lg font-bold tracking-tight text-white">ProjectIQ</span>
-                  <span className="block text-[10px] font-medium tracking-wider text-brand-400 uppercase">Intelligence Platform</span>
-                </div>
+              <div className="flex items-center">
+                <img
+                  src="/logo.png"
+                  alt="VC ERP Consulting"
+                  className="h-10 w-auto max-w-[210px] object-contain brightness-110"
+                />
               </div>
 
               <span className="rounded-full bg-slate-800/80 px-2.5 py-1 text-[11px] font-medium text-slate-400 border border-slate-700">
-                v2.0 Live
+                Meeting Intelligence
               </span>
             </div>
 
@@ -215,27 +214,6 @@ export default function Auth({ initialMode = 'login' }) {
                         placeholder="e.g. Parthiv Dudhrejiya"
                         className="w-full rounded-xl border border-slate-700 bg-slate-950/70 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                       />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Consulting Role
-                    </label>
-                    <div className="relative">
-                      <Briefcase size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <select
-                        value={role}
-                        onChange={(e) => setRole(e.target.value)}
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950/70 py-2.5 pl-10 pr-4 text-sm text-white transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                      >
-                        <option value="Project Lead">Project Lead &amp; Architect</option>
-                        <option value="Principal SAP Consultant">Principal SAP Consultant</option>
-                        <option value="Lead Finance Architect">Lead Finance Architect (FI/CO)</option>
-                        <option value="Supply Chain Architect">Supply Chain Architect (MM/PP/QM)</option>
-                        <option value="Technical Lead">Technical Lead &amp; Integration</option>
-                        <option value="Project Manager">Project Manager</option>
-                      </select>
                     </div>
                   </div>
                 </>

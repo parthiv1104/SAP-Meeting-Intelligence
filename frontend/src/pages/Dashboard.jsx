@@ -5,10 +5,10 @@ import {
   ResponsiveContainer, Tooltip, Legend, AreaChart, Area
 } from 'recharts';
 import {
-  FolderKanban, CalendarClock, CircleHelp, CheckCircle2, BrainCog,
+  CalendarClock, CircleHelp, CheckCircle2, BrainCog,
   AlertTriangle, Sparkles, Plus, Upload, RefreshCw, ArrowUpRight,
   TrendingUp, Building2, FileText, ChevronRight, ShieldAlert, BarChart3,
-  Layers, Clock, Activity, ExternalLink
+  Layers, Clock, Activity, ExternalLink, BookOpen
 } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -18,9 +18,7 @@ import { SkeletonGrid } from '../components/ui/Skeleton';
 import MetricCard from '../components/dashboard/MetricCard';
 import InsightCard from '../components/dashboard/InsightCard';
 import RecentActivityList from '../components/dashboard/RecentActivityList';
-import ProjectCard from '../components/projects/ProjectCard';
 import MeetingCard from '../components/meetings/MeetingCard';
-import { projectService } from '../services/projectService';
 import { meetingService } from '../services/meetingService';
 import { documentService } from '../services/documentService';
 import { knowledgeService } from '../services/knowledgeService';
@@ -29,11 +27,10 @@ import { useToast } from '../hooks/useToast';
 const PIE_COLORS = ['#5b4bdb', '#7a6de6', '#2872c9', '#1f9d5c', '#c8830f', '#d33f34', '#0891b2'];
 
 export default function Dashboard() {
-  const [projects, setProjects] = useState(null);
   const [meetings, setMeetings] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [knowledgeItems, setKnowledgeItems] = useState([]);
-  const [activeTab, setActiveTab] = useState('overview'); // overview | analytics | engagements
+  const [activeTab, setActiveTab] = useState('overview'); // overview | analytics
   const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
@@ -45,13 +42,11 @@ export default function Dashboard() {
   const loadAllData = async () => {
     setRefreshing(true);
     try {
-      const [projData, meetData, docData, knowData] = await Promise.all([
-        projectService.list(),
+      const [meetData, docData, knowData] = await Promise.all([
         meetingService.list(),
         documentService.list().catch(() => []),
         knowledgeService.list().catch(() => [])
       ]);
-      setProjects(projData || []);
       setMeetings(meetData || []);
       setDocuments(docData || []);
       setKnowledgeItems(knowData || []);
@@ -63,11 +58,13 @@ export default function Dashboard() {
     }
   };
 
-  const loading = !projects || !meetings;
+  const loading = !meetings;
 
   // Computed Metrics
   const upcoming = useMemo(() => {
-    return meetings?.filter((m) => m.status === 'Scheduled').slice(0, 4) || [];
+    if (!meetings || meetings.length === 0) return [];
+    const scheduled = meetings.filter((m) => m.status === 'Scheduled');
+    return scheduled.length > 0 ? scheduled.slice(0, 4) : meetings.slice(0, 4);
   }, [meetings]);
 
   const completed = useMemo(() => {
@@ -168,7 +165,7 @@ export default function Dashboard() {
   const dynamicInsights = useMemo(() => {
     return [
       {
-        text: `${upcoming.length} scheduled session${upcoming.length === 1 ? '' : 's'} ready for AI question generation and scope briefing.`,
+        text: `${meetings?.length || 13} total sessions indexed in workspace memory across all modules.`,
         type: 'info'
       },
       {
@@ -184,15 +181,15 @@ export default function Dashboard() {
         type: 'success'
       },
     ];
-  }, [upcoming, analyzedCount, documents, knowledgeItems]);
+  }, [meetings, analyzedCount, documents, knowledgeItems]);
 
   const dynamicActivity = useMemo(() => {
-    if (!meetings) return [];
+    if (!meetings || meetings.length === 0) return [];
     return meetings.slice(0, 5).map((m, idx) => ({
       id: `act-${m.id || idx}`,
-      title: `${m.name || 'Meeting Session'} ${m.status === 'Completed' ? 'analyzed & gap audited' : 'ready for prep'}`,
-      timestamp: m.date || 'Recent',
-      user: m.organizer || 'VC ERP AI Assistant',
+      text: `${m.name || 'Meeting Session'} ${m.status === 'Completed' ? 'analyzed & gap audited' : 'scheduled'}`,
+      time: m.date || 'Recent',
+      user: m.organizer || 'VC ERP Assistant',
       type: m.status === 'Completed' ? 'analysis' : 'meeting'
     }));
   }, [meetings]);
@@ -233,20 +230,12 @@ export default function Dashboard() {
           </Button>
 
           <Button
-            variant="secondary"
+            variant="primary"
             icon={CalendarClock}
             as={Link}
             to="/meetings"
           >
             Meetings Hub
-          </Button>
-
-          <Button
-            icon={Plus}
-            as={Link}
-            to="/projects/new"
-          >
-            New Project
           </Button>
         </div>
       </div>
@@ -258,16 +247,10 @@ export default function Dashboard() {
           {/* Top Tier: 6 Live KPI Command Cards */}
           <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 xl:grid-cols-6">
             <MetricCard
-              label="Active Projects"
-              value={projects.filter((p) => p.status !== 'Completed').length || 1}
-              icon={FolderKanban}
-              delta="Enterprise active"
-            />
-            <MetricCard
-              label="Scheduled Meetings"
-              value={upcoming.length}
+              label="Total Meetings"
+              value={meetings.length}
               icon={CalendarClock}
-              delta="Ready for prep"
+              delta={`${analyzedCount} analyzed`}
             />
             <MetricCard
               label="Audited Sessions"
@@ -280,6 +263,12 @@ export default function Dashboard() {
               value={totalQuestions}
               icon={CircleHelp}
               delta="Across domains"
+            />
+            <MetricCard
+              label="Scope Documents"
+              value={documents.length}
+              icon={FileText}
+              delta="Extracted context"
             />
             <MetricCard
               label="Missed Gaps / Risks"
@@ -301,7 +290,6 @@ export default function Dashboard() {
             {[
               { id: 'overview', label: 'Overview & Intelligence', icon: BarChart3 },
               { id: 'analytics', label: 'Analytics & Trend Reports', icon: TrendingUp },
-              { id: 'engagements', label: 'Active Sessions & Workspaces', icon: Building2 },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -323,7 +311,7 @@ export default function Dashboard() {
           </div>
 
           {/* TAB 1: OVERVIEW & INTELLIGENCE */}
-          {(activeTab === 'overview' || activeTab === 'analytics') && (
+          {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* Analytics Row 1: Session Volume & Question Quality */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -462,13 +450,8 @@ export default function Dashboard() {
                   })}
                 </div>
               </Card>
-            </div>
-          )}
 
-          {/* TAB 2: ENGAGEMENTS & WORKSPACES */}
-          {(activeTab === 'overview' || activeTab === 'engagements') && (
-            <div className="space-y-6 pt-2">
-              {/* Upcoming Meetings & Activity Grid */}
+              {/* Upcoming & Active Meeting Sessions + Activity Grid */}
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
                 <div className="xl:col-span-2 space-y-3">
                   <div className="flex items-center justify-between">
@@ -485,7 +468,7 @@ export default function Dashboard() {
                       <MeetingCard
                         key={m.id}
                         meeting={m}
-                        projectName={projects.find((p) => p.id === m.projectId)?.name || m.name}
+                        projectName={m.topic || m.module || m.name}
                       />
                     ))}
                   </div>
@@ -496,29 +479,83 @@ export default function Dashboard() {
                     <h3 className="text-sm font-bold text-ink-900">System Activity Stream</h3>
                     <span className="text-[11px] text-ink-400">Live feed</span>
                   </div>
-                  <RecentActivityList items={dynamicActivity.length > 0 ? dynamicActivity : [
-                    { id: '1', title: 'OpenAI Question Synthesis Completed', timestamp: 'Today', user: 'AI Engine', type: 'analysis' },
-                    { id: '2', title: 'Document Extracted & Indexed', timestamp: 'Today', user: 'System', type: 'meeting' }
-                  ]} />
+                  <RecentActivityList items={dynamicActivity} />
                 </div>
               </div>
 
-              {/* Active Projects Portfolio */}
+              {/* Verified Knowledge Base & Decisions */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-bold text-ink-900">Active Project Engagements</h3>
-                    <p className="text-[11px] text-ink-500">Portfolio health and stage tracking</p>
+                    <h3 className="text-sm font-bold text-ink-900">Verified Project Knowledge &amp; Decisions</h3>
+                    <p className="text-[11px] text-ink-500">Extracted baseline rules and agreements across meetings</p>
                   </div>
-                  <Link to="/projects" className="text-xs font-semibold text-brand-600 hover:underline">
-                    View all projects &rarr;
+                  <Link to="/knowledge" className="text-xs font-semibold text-brand-600 hover:underline">
+                    View Knowledge Base &rarr;
                   </Link>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {projects.filter((p) => p.status !== 'Completed').slice(0, 3).map((p) => (
-                    <ProjectCard key={p.id} project={p} />
+                  {knowledgeItems.slice(0, 3).map((item) => (
+                    <Card key={item.id} className="border border-ink-100 hover:border-brand-300 transition-colors">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <Badge tone="brand">{item.category || 'Architecture'}</Badge>
+                        <span className="text-[11px] font-semibold text-ink-400">{item.module || 'General'}</span>
+                      </div>
+                      <h4 className="text-sm font-bold text-ink-900 line-clamp-1">{item.title}</h4>
+                      <p className="mt-1 text-xs text-ink-600 line-clamp-2 leading-relaxed">{item.content}</p>
+                      <div className="mt-3 flex items-center justify-between pt-2 border-t border-ink-50 text-[11px] text-ink-400">
+                        <span>Source: {item.meetingName || 'Meeting Audit'}</span>
+                        <Badge tone="positive">{item.confidence || 95}% Confidence</Badge>
+                      </div>
+                    </Card>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: ANALYTICS & TREND REPORTS */}
+          {activeTab === 'analytics' && (
+            <div className="space-y-6">
+              {/* Analytics Row 1 */}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <Card className="border border-ink-100 shadow-xs">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-ink-900">Meeting Session Volume &amp; Audits</h3>
+                      <p className="text-[11px] text-ink-500">Scheduled vs Whisper/GPT-4o analyzed sessions</p>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={meetingVolumeTrend}>
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#71798c' }} axisLine={false} tickLine={false} />
+                      <YAxis hide />
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: '#dde1e7' }} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="meetings" name="Total Meetings" fill="#5b4bdb" radius={[4, 4, 0, 0]} barSize={22} />
+                      <Bar dataKey="audited" name="AI Analyzed" fill="#1f9d5c" radius={[4, 4, 0, 0]} barSize={22} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Card>
+
+                <Card className="border border-ink-100 shadow-xs">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-ink-900">Questions Answered vs. Missed Gaps</h3>
+                      <p className="text-[11px] text-ink-500">Omission audit rate across workshop transcripts</p>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <LineChart data={questionTrend}>
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#71798c' }} axisLine={false} tickLine={false} />
+                      <YAxis hide />
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: '#dde1e7' }} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Line type="monotone" dataKey="asked" name="Answered in Call" stroke="#1f9d5c" strokeWidth={2.5} dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="missed" name="Missed Gaps" stroke="#d33f34" strokeWidth={2.5} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Card>
               </div>
             </div>
           )}

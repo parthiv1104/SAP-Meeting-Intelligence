@@ -19,6 +19,13 @@ export const authService = {
     return apiFetch('/auth/me/');
   },
 
+  updateProfile: async (data) => {
+    return apiFetch('/auth/me/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   logout: async () => {
     try {
       await apiFetch('/auth/logout/', { method: 'POST' });

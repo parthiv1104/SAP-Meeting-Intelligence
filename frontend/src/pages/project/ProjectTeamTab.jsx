@@ -31,7 +31,6 @@ export default function ProjectTeamTab() {
               <Avatar name={m.name} size={38} />
               <div>
                 <p className="text-sm font-semibold text-ink-900">{m.name}</p>
-                <p className="text-xs text-ink-500">{m.role}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5">

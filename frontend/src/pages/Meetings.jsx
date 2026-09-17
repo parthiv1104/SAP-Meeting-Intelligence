@@ -9,9 +9,9 @@ import EmptyState from '../components/ui/EmptyState';
 import { SkeletonGrid } from '../components/ui/Skeleton';
 import { Link } from 'react-router-dom';
 import { meetingService } from '../services/meetingService';
-import { projectService } from '../services/projectService';
 import { apiFetch } from '../services/apiClient';
 import { useAuth } from '../context/AuthContext';
+import { getDynamicMeetingTag } from '../utils/domainUtils';
 
 const FILTERS = ['All', 'Upcoming', 'Completed'];
 
@@ -19,7 +19,6 @@ export default function Meetings() {
   const { id: projectId } = useParams();
   const { user } = useAuth();
   const [meetings, setMeetings] = useState(null);
-  const [projects, setProjects] = useState([]);
   const [filter, setFilter] = useState('All');
   const [query, setQuery] = useState('');
   const [loadingTeams, setLoadingTeams] = useState(false);
@@ -27,7 +26,6 @@ export default function Meetings() {
   // 1. AUTO-LOAD ON PAGE OPEN / REFRESH:
   useEffect(() => {
     fetchLiveTeamsMeetings();
-    projectService.list().then(setProjects);
   }, [user?.email]);
 
   // 2. FETCH REAL-TIME TEAMS MEETINGS FOR LOGGED-IN USER:
@@ -51,39 +49,34 @@ export default function Meetings() {
     }
   };
 
-  const projectName = (pid) => projects.find((p) => p.id === pid)?.name || pid || '—';
-
   const filtered = useMemo(() => {
     if (!meetings) return [];
     return meetings.filter((m) => {
-      if (projectId && m.projectId !== projectId) return false;
       if (query && !m.name?.toLowerCase().includes(query.toLowerCase())) return false;
       if (filter === 'Upcoming' && m.status !== 'Scheduled') return false;
       if (filter === 'Completed' && m.status !== 'Completed') return false;
       return true;
     });
-  }, [meetings, filter, query, projectId]);
+  }, [meetings, filter, query]);
 
   return (
     <div className="space-y-5">
-      {!projectId && (
-        <div className="flex items-center justify-between">
-          <PageHeader title="Meetings" description="Every workshop and review session across your active projects." />
-          
-          {/* Microsoft Teams Auto-Sync Status & Refresh Button */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={fetchLiveTeamsMeetings}
-              disabled={loadingTeams}
-              className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all shadow-sm cursor-pointer"
-              title="Click to refresh meetings from Microsoft Teams"
-            >
-              <RefreshCw className={`h-4 w-4 ${loadingTeams ? 'animate-spin' : ''}`} />
-              {loadingTeams ? 'Syncing...' : 'Synced with Microsoft Teams'}
-            </button>
-          </div>
+      <div className="flex items-center justify-between">
+        <PageHeader title="Meetings" description="Every workshop, client interview, and review session in your workspace." />
+        
+        {/* Microsoft Teams Auto-Sync Status & Refresh Button */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchLiveTeamsMeetings}
+            disabled={loadingTeams}
+            className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all shadow-sm cursor-pointer"
+            title="Click to refresh meetings from Microsoft Teams"
+          >
+            <RefreshCw className={`h-4 w-4 ${loadingTeams ? 'animate-spin' : ''}`} />
+            {loadingTeams ? 'Syncing...' : 'Synced with Microsoft Teams'}
+          </button>
         </div>
-      )}
+      </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
         <SearchInput value={query} onChange={setQuery} placeholder="Search meetings..." className="w-full max-w-xs" />
@@ -107,36 +100,54 @@ export default function Meetings() {
       ) : filtered.length === 0 ? (
         <EmptyState icon={CalendarClock} title="No meetings found" description="No upcoming meetings found on your calendar." />
       ) : (
-        <Table columns={['Meeting', 'Project', 'Date', 'Time', 'Participants', 'Topic', 'Status', 'Teams Link']}>
-          {filtered.map((m) => (
-            <tr key={m.id} className="hover:bg-ink-50/60">
-              <td className="px-4 py-3">
-                <Link to={`/meetings/${m.id}`} className="font-medium text-brand-700 hover:underline">{m.name}</Link>
-              </td>
-              <td className="px-4 py-3 text-ink-600">{projectName(m.projectId)}</td>
-              <td className="px-4 py-3 text-ink-600">{m.date}</td>
-              <td className="px-4 py-3 text-ink-600">{m.time || '—'}</td>
-              <td className="px-4 py-3 text-ink-600">{m.participants}</td>
-              <td className="px-4 py-3"><Badge tone="neutral">{m.topic}</Badge></td>
-              <td className="px-4 py-3"><Badge>{m.status}</Badge></td>
-              <td className="px-4 py-3">
-                {m.joinUrl ? (
-                  <a
-                    href={m.joinUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#464EB8] hover:underline"
-                  >
-                    <Video className="h-3.5 w-3.5" />
-                    Join Teams
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                ) : (
-                  <span className="text-xs text-ink-400">—</span>
-                )}
-              </td>
-            </tr>
-          ))}
+        <Table
+          columns={[
+            { label: 'Meeting', className: 'w-[42%] min-w-[320px]' },
+            { label: 'Date', className: 'w-[110px]' },
+            { label: 'Time', className: 'w-[80px]' },
+            { label: 'Participants', className: 'w-[90px]' },
+            { label: 'Topic / Domain', className: 'w-[140px]' },
+            { label: 'Status', className: 'w-[100px]' },
+            { label: 'Teams Link', className: 'w-[120px]' },
+          ]}
+        >
+          {filtered.map((m) => {
+            const tag = getDynamicMeetingTag(m);
+            return (
+              <tr key={m.id} className="hover:bg-ink-50/60 transition-colors">
+                <td className="px-4 py-3.5 font-medium text-ink-900 leading-snug">
+                  <Link to={`/meetings/${m.id}`} className="text-brand-700 hover:text-brand-800 hover:underline">
+                    {m.name}
+                  </Link>
+                </td>
+                <td className="whitespace-nowrap px-4 py-3.5 font-medium text-ink-700">{m.date}</td>
+                <td className="whitespace-nowrap px-4 py-3.5 text-ink-600">{m.time || '—'}</td>
+                <td className="whitespace-nowrap px-4 py-3.5 text-ink-600">{m.participants}</td>
+                <td className="whitespace-nowrap px-4 py-3.5">
+                  <span className="inline-block max-w-[150px] truncate" title={tag.label}>
+                    <Badge tone={tag.tone}>{tag.label}</Badge>
+                  </span>
+                </td>
+                <td className="whitespace-nowrap px-4 py-3.5"><Badge tone={m.status === 'Completed' ? 'positive' : 'brand'}>{m.status}</Badge></td>
+                <td className="whitespace-nowrap px-4 py-3.5">
+                  {m.joinUrl ? (
+                    <a
+                      href={m.joinUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#464EB8] hover:underline"
+                    >
+                      <Video className="h-3.5 w-3.5" />
+                      Join Teams
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  ) : (
+                    <span className="text-xs text-ink-400">—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </Table>
       )}
     </div>

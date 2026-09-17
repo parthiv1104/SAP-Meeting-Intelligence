@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { CheckCircle2, BarChart3, Users, Clock, Sparkles, RefreshCw, ArrowLeft, AlertCircle, ShieldAlert, BookOpen } from 'lucide-react';
+import {
+  CheckCircle2, BarChart3, Users, Clock, Sparkles, RefreshCw,
+  ArrowLeft, AlertCircle, ShieldAlert, BookOpen, Printer, Building2, FileText
+} from 'lucide-react';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import ProgressBar from '../components/ui/ProgressBar';
@@ -9,7 +12,6 @@ import RecommendedQuestionCard from '../components/questions/RecommendedQuestion
 import { SkeletonGrid } from '../components/ui/Skeleton';
 import { meetingService } from '../services/meetingService';
 import { useToast } from '../hooks/useToast';
-
 import { getMeetingDomain } from '../utils/domainUtils';
 
 export default function MeetingPreparation() {
@@ -65,15 +67,39 @@ export default function MeetingPreparation() {
   const domainInfo = getMeetingDomain(meeting || { name: prep.meetingName, module: prep.moduleLabel });
   const questions = prep.recommendedQuestions || [];
   const readiness = prep.readiness || { overall: 90, projectKnowledge: 92, openRequirements: 86, questionCoverage: 88 };
-  const participants = prep.participants || (meeting?.attendees?.length ? meeting.attendees.map(a => ({ name: a, role: 'Participant' })) : [
-    { name: domainInfo.roleConsultant, role: domainInfo.isSap ? 'Lead Architect (VC ERP)' : 'Solutions Architect' },
-    { name: 'Domain Stakeholder', role: domainInfo.roleClient }
+  const participants = prep.participants || (meeting?.attendees?.length ? meeting.attendees.map(a => ({ name: typeof a === 'string' ? a : a.name })) : [
+    { name: 'Lead Consultant (VC ERP)' },
+    { name: 'Domain Stakeholder' }
   ]);
-  const topics = prep.topics || domainInfo.defaultTopics;
+  
+  // Enforce MAXIMUM 5 Focus Topics
+  const topics = (prep.topics || domainInfo.defaultTopics || []).slice(0, 5);
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* Corporate PDF Printable Letterhead (Visible only on print/export) */}
+      <div className="print-only border-b-2 border-brand-600 pb-4 mb-5 space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-700">VC ERP Consulting Group • ProjectIQ Intelligence</p>
+            <h1 className="text-xl font-extrabold text-ink-900 mt-1">EXECUTIVE PRE-MEETING PREPARATION BRIEF</h1>
+          </div>
+          <div className="text-right text-xs text-ink-500">
+            <p className="font-semibold text-ink-800">CONFIDENTIAL // CLIENT ADVISORY</p>
+            <p>Generated: {new Date().toLocaleDateString()}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2 pt-2 text-xs border-t border-ink-100">
+          <div><span className="text-ink-400">Meeting Title:</span> <p className="font-bold text-ink-900">{prep.meetingName || meeting?.name}</p></div>
+          <div><span className="text-ink-400">Engagement:</span> <p className="font-bold text-ink-900">{prep.project || 'Client Transformation'}</p></div>
+          <div><span className="text-ink-400">Scope Domain:</span> <p className="font-bold text-ink-900">{prep.moduleLabel || meeting?.module || 'General'}</p></div>
+          <div><span className="text-ink-400">Readiness Score:</span> <p className="font-bold text-emerald-700">{readiness.overall || 92}% Index</p></div>
+        </div>
+      </div>
+
+      {/* Screen Header & Action Bar (Hidden when printing) */}
+      <div className="flex flex-wrap items-center justify-between gap-4 print-hidden">
         <div>
           <Link to={`/meetings/${id}`} className="mb-1 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline">
             <ArrowLeft size={12} /> Back to Meeting Overview
@@ -104,7 +130,16 @@ export default function MeetingPreparation() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            icon={Printer}
+            onClick={() => window.print()}
+            title="Export this executive briefing as a formal PDF document"
+          >
+            Export PDF Brief
+          </Button>
+
           <Button
             variant="secondary"
             icon={RefreshCw}
@@ -114,6 +149,7 @@ export default function MeetingPreparation() {
           >
             {regenerating ? 'Generating with OpenAI...' : 'Regenerate Questions with AI'}
           </Button>
+
           <Button icon={BarChart3} onClick={() => navigate(`/meetings/${id}/analysis`)}>
             Post-Meeting Analysis
           </Button>
@@ -133,8 +169,7 @@ export default function MeetingPreparation() {
           <div className="space-y-2.5">
             {participants.map((p, idx) => (
               <div key={idx} className="text-sm">
-                <p className="font-semibold text-ink-900">{p.name}</p>
-                <p className="text-xs text-ink-500">{p.role}</p>
+                <p className="font-semibold text-ink-900">{typeof p === 'string' ? p : p.name}</p>
               </div>
             ))}
           </div>

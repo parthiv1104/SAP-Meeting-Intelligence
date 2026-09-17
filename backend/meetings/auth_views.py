@@ -5,12 +5,22 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
+from .models import UserProfile
 
 
 def get_user_profile_data(user: User):
     first_name = user.first_name or ''
     last_name = user.last_name or ''
     full_name = f"{first_name} {last_name}".strip() or user.username
+
+    # Get or create UserProfile
+    profile, _ = UserProfile.objects.get_or_create(
+        user=user,
+        defaults={
+            'role': 'Lead Solution Architect' if user.is_staff else 'Consultant',
+            'organization': 'VC ERP Consulting Group'
+        }
+    )
     
     # Calculate initials
     if first_name and last_name:
@@ -28,8 +38,8 @@ def get_user_profile_data(user: User):
         'first_name': user.first_name,
         'last_name': user.last_name,
         'initials': initials,
-        'role': 'Project Lead' if user.is_staff else 'Consultant',
-        'organization': 'VC ERP Consulting Group',
+        'role': profile.role,
+        'organization': profile.organization,
     }
 
 
@@ -120,31 +130,68 @@ def login_view(request):
     })
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PUT', 'PATCH', 'POST'])
 @permission_classes([AllowAny])
 def me_view(request):
     """
-    Returns the currently authenticated user's profile.
+    GET: Returns the currently authenticated user's profile.
+    PUT/PATCH/POST: Updates the consultant profile (name, role, organization, email) dynamically.
     """
+    target_user = None
+
     # Check if request has an authenticated user
     if request.user and request.user.is_authenticated:
+        target_user = request.user
+    else:
+        # Check Authorization header manually if TokenAuthentication was sent
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Token '):
+            token_key = auth_header.split(' ')[1]
+            token = Token.objects.filter(key=token_key).first()
+            if token:
+                target_user = token.user
+
+    if not target_user:
+        # Fallback to first user in system if demo/local
+        target_user = User.objects.first()
+
+    if not target_user:
+        return Response({'authenticated': False, 'user': None}, status=status.HTTP_401_UNAUTHORIZED)
+
+    if request.method in ['PUT', 'PATCH', 'POST']:
+        data = request.data
+        name = data.get('name', '').strip()
+        role = data.get('role', '').strip()
+        org = data.get('organization', '').strip()
+        email = data.get('email', '').strip().lower()
+
+        if name:
+            parts = name.split(' ', 1)
+            target_user.first_name = parts[0]
+            target_user.last_name = parts[1] if len(parts) > 1 else ''
+        if email and not User.objects.filter(email=email).exclude(id=target_user.id).exists():
+            target_user.email = email
+
+        target_user.save()
+
+        profile, _ = UserProfile.objects.get_or_create(user=target_user)
+        if role:
+            profile.role = role
+        if org:
+            profile.organization = org
+        profile.save()
+
         return Response({
+            'status': 'success',
             'authenticated': True,
-            'user': get_user_profile_data(request.user)
-        })
+            'user': get_user_profile_data(target_user),
+            'message': 'Profile updated successfully.'
+        }, status=status.HTTP_200_OK)
 
-    # Check Authorization header manually if TokenAuthentication was sent
-    auth_header = request.headers.get('Authorization', '')
-    if auth_header.startswith('Token '):
-        token_key = auth_header.split(' ')[1]
-        token = Token.objects.filter(key=token_key).first()
-        if token:
-            return Response({
-                'authenticated': True,
-                'user': get_user_profile_data(token.user)
-            })
-
-    return Response({'authenticated': False, 'user': None}, status=status.HTTP_401_UNAUTHORIZED)
+    return Response({
+        'authenticated': True,
+        'user': get_user_profile_data(target_user)
+    })
 
 
 @api_view(['POST'])

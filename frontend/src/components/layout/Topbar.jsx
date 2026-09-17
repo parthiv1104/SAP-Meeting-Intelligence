@@ -1,20 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import SearchInput from '../ui/SearchInput';
 import GlobalSearchResults from './GlobalSearchResults';
-import NotificationDrawer from './NotificationDrawer';
 import Avatar from '../ui/Avatar';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Topbar({ projectContext }) {
   const [query, setQuery] = useState('');
-  const [notifOpen, setNotifOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
 
   const displayName = user?.name || user?.username || 'Consultant';
-  const displayRole = user?.role || 'Project Lead';
 
   return (
     <header className="sticky top-0 z-30 border-b border-ink-100 bg-white/90 backdrop-blur">
@@ -23,7 +20,7 @@ export default function Topbar({ projectContext }) {
           <SearchInput
             value={query}
             onChange={setQuery}
-            placeholder="Search projects, meetings, questions, knowledge..."
+            placeholder="Search meetings, questions, knowledge, documents..."
           />
           {query && (
             <GlobalSearchResults
@@ -44,23 +41,14 @@ export default function Topbar({ projectContext }) {
         )}
 
         <div className="ml-auto flex items-center gap-3">
-          <button
-            onClick={() => setNotifOpen(true)}
-            className="focus-ring relative rounded-lg p-2 text-ink-500 hover:bg-ink-50"
-          >
-            <Bell size={18} />
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-critical-500 ring-2 ring-white" />
-          </button>
-          <div className="hidden items-center gap-2.5 border-l border-ink-100 pl-3 sm:flex">
+          <div className="flex items-center gap-2.5 pl-3">
             <Avatar name={displayName} size={28} />
             <div className="text-right leading-tight">
               <p className="text-sm font-medium text-ink-800">{displayName}</p>
-              <p className="text-xs text-ink-400">{displayRole}</p>
             </div>
           </div>
         </div>
       </div>
-      <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} />
     </header>
   );
 }

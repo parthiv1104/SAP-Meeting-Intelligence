@@ -73,16 +73,41 @@ def parse_graph_event(e):
     else:
         status = 'Scheduled'
 
-    # Infer SAP module from subject if available
+    # Dynamic Domain / Module Inference
     subject_upper = subject.upper()
-    module = 'Cross-Module'
-    for mod in ['MM', 'FI', 'CO', 'SD', 'PP', 'QM', 'PM', 'EWM', 'HCM', 'PS']:
+    module = None
+
+    for mod in ['MM', 'FI', 'CO', 'SD', 'PP', 'QM', 'PM', 'EWM', 'HCM', 'PS', 'FICO', 'ABAP']:
         if f" {mod} " in f" {subject_upper} " or f"({mod})" in subject_upper or f"[{mod}]" in subject_upper or f"/{mod}" in subject_upper or f"-{mod}" in subject_upper or subject_upper.startswith(f"{mod} "):
-            module = mod
+            module = f"SAP {mod}"
             break
 
+    if not module:
+        if 'BTP' in subject_upper:
+            module = 'SAP BTP'
+        elif 'B1' in subject_upper or 'BUSINESS ONE' in subject_upper:
+            module = 'SAP B1'
+        elif 'PROCUREMENT' in subject_upper or 'COSTING' in subject_upper:
+            module = 'SAP MM / Costing'
+        elif 'S/4HANA' in subject_upper or 'S4HANA' in subject_upper:
+            module = 'SAP S/4HANA'
+        elif any(k in subject_upper for k in ['AI', 'INTELLIGENCE', 'LLM', 'GPT', 'ML', 'MACHINE LEARNING', 'MODEL', 'NLP', 'VISION']):
+            module = 'Artificial Intelligence'
+        elif any(k in subject_upper for k in ['COMPLIANCE', 'EY', 'AUDIT', 'GOVERNANCE', 'LEGAL', 'TAX']):
+            module = 'Compliance & Tech'
+        elif any(k in subject_upper for k in ['VIBE CODING', 'CODING', 'DEV', 'ENGINEERING', 'SOFTWARE', 'APP', 'PLATFORM']):
+            module = 'Software Dev'
+        elif any(k in subject_upper for k in ['CERTIFICATION', 'ENABLEMENT', 'TRAINING', 'DRIVE']):
+            module = 'Enablement'
+        elif any(k in subject_upper for k in ['DEMO', 'SOLUTIONS']):
+            module = 'Solutions Demo'
+        elif 'SAP' in subject_upper:
+            module = 'SAP Enterprise'
+        else:
+            module = 'Strategy & Operations'
+
     # Infer Industry if available in subject
-    industry = 'Manufacturing'
+    industry = 'Technology' if module in ['Artificial Intelligence', 'Software Dev', 'Compliance & Tech'] else 'Manufacturing'
     for ind in ['Pharma', 'Pharmaceutical', 'Retail', 'Automotive', 'Logistics', 'Energy', 'Chemical', 'Healthcare']:
         if ind.lower() in subject.lower():
             industry = ind.capitalize()

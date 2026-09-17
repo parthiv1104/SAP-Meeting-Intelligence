@@ -21,6 +21,7 @@ class MeetingViewSet(viewsets.ModelViewSet):
     MS Teams IDs, and auto-creation with real Microsoft Graph event data when referencing live Teams events.
     """
     serializer_class = MeetingSerializer
+    lookup_value_regex = r'.+'
 
     def get_queryset(self):
         qs = Meeting.objects.all().order_by('-created_at')
@@ -39,47 +40,80 @@ class MeetingViewSet(viewsets.ModelViewSet):
 
     def get_object(self):
         lookup = self.kwargs.get('pk')
-        # 1. Check local DB by direct ID
-        meeting = Meeting.objects.filter(id=lookup).first()
-        if meeting:
-            return meeting
-        
-        # 2. Check local DB by Teams meeting ID
-        meeting = Meeting.objects.filter(teams_meeting_id=lookup).first()
-        if meeting:
-            return meeting
-        
-        # 3. If not in DB, query Microsoft Graph API for this specific event ID
-        event_data = fetch_single_teams_meeting(lookup)
-        if event_data:
-            user_email = self.request.user.email if (self.request.user and self.request.user.is_authenticated) else ''
-            meeting = Meeting.objects.create(
-                id=event_data.get('id', lookup),
-                name=event_data.get('name', 'Microsoft Teams Meeting'),
-                user_email=user_email,
-                teams_meeting_id=event_data.get('id', lookup),
-                join_url=event_data.get('joinUrl', ''),
-                date=event_data.get('date', ''),
-                time=event_data.get('time', ''),
-                participants=event_data.get('participants', 1),
-                status=event_data.get('status', 'Scheduled'),
-                topic=event_data.get('topic', event_data.get('name')),
-                module=event_data.get('module', 'MM'),
-                industry=event_data.get('industry', 'Manufacturing'),
-                organizer=event_data.get('organizer', ''),
-            )
-            return meeting
+        return get_or_create_meeting_by_id(lookup, self.request)
 
-        # 4. Fallback creation with identifier as name
-        return Meeting.objects.create(
-            id=lookup,
-            name=f"Meeting Session {lookup[:12]}",
-            teams_meeting_id=lookup,
-            status="Scheduled",
-            topic="SAP Requirement Workshop",
-            module="MM",
-            industry="Manufacturing"
+def get_or_create_meeting_by_id(lookup, request=None):
+    if not lookup:
+        return None
+    lookup = str(lookup).rstrip('/')
+
+    # 1. Check local DB by direct ID
+    meeting = Meeting.objects.filter(id=lookup).first()
+    if meeting:
+        return meeting
+    
+    # 2. Check local DB by Teams meeting ID
+    meeting = Meeting.objects.filter(teams_meeting_id=lookup).first()
+    if meeting:
+        return meeting
+    
+    # 3. If not in DB, query Microsoft Graph API for this specific event ID
+    event_data = fetch_single_teams_meeting(lookup)
+    if event_data:
+        user_email = ''
+        if request and hasattr(request, 'user') and request.user and request.user.is_authenticated:
+            user_email = request.user.email
+        meeting = Meeting.objects.create(
+            id=event_data.get('id', lookup),
+            name=event_data.get('name', 'Microsoft Teams Meeting'),
+            user_email=user_email,
+            teams_meeting_id=event_data.get('id', lookup),
+            join_url=event_data.get('joinUrl', ''),
+            date=event_data.get('date', ''),
+            time=event_data.get('time', ''),
+            participants=event_data.get('participants', 1),
+            status=event_data.get('status', 'Scheduled'),
+            topic=event_data.get('topic', event_data.get('name')),
+            module=event_data.get('module', 'MM'),
+            industry=event_data.get('industry', 'Manufacturing'),
+            organizer=event_data.get('organizer', ''),
         )
+        return meeting
+
+    # 4. Fallback creation with identifier as name
+    return Meeting.objects.create(
+        id=lookup,
+        name=f"Meeting Session {lookup[:12]}",
+        teams_meeting_id=lookup,
+        status="Scheduled",
+        topic="Meeting Scope",
+        module="Cross-Module",
+        industry="General"
+    )
+
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
+def single_meeting_detail(request, meeting_id):
+    """
+    Dedicated view supporting full-path meeting IDs (including Graph API Base64 IDs).
+    """
+    meeting = get_or_create_meeting_by_id(meeting_id, request)
+    if not meeting:
+        return Response({'error': 'Meeting not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = MeetingSerializer(meeting)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    elif request.method in ['PUT', 'PATCH']:
+        serializer = MeetingSerializer(meeting, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        meeting.delete()
+        return Response({'status': 'deleted'}, status=status.HTTP_204_NO_CONTENT)
 
 @api_view(['GET', 'POST'])
 def live_teams_meetings(request):

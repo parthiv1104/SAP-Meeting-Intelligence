@@ -72,3 +72,54 @@ body {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
 }
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 14mm 14mm 14mm;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #14161f !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 11pt !important;
+  }
+
+  aside, header, nav, button, .print-hidden {
+    display: none !important;
+  }
+
+  main, .app-shell, #root, .space-y-5, .space-y-6 {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite !important;
+}
+
