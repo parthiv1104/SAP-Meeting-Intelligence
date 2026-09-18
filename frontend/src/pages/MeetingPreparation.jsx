@@ -101,8 +101,14 @@ export default function MeetingPreparation() {
       {/* Screen Header & Action Bar (Hidden when printing) */}
       <div className="flex flex-wrap items-center justify-between gap-4 print-hidden">
         <div>
-          <Link to={`/meetings/${id}`} className="mb-1 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline">
-            <ArrowLeft size={12} /> Back to Meeting Overview
+          <Link
+            to={`/meetings/${id}`}
+            className="mb-3 inline-flex items-center gap-2 rounded-lg border border-ink-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-ink-700 shadow-sm transition-all duration-200 hover:border-brand-400 hover:bg-brand-50/80 hover:text-brand-700 hover:shadow group"
+          >
+            <div className="flex h-5 w-5 items-center justify-center rounded-md bg-ink-100 text-ink-600 transition-colors duration-200 group-hover:bg-brand-100 group-hover:text-brand-700">
+              <ArrowLeft size={13} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
+            </div>
+            <span>Back to Meeting Overview</span>
           </Link>
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">{prep.project || meeting?.name}</p>

@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ClipboardList, Radio, BarChart3, Clock, Users, UploadCloud,
   FileAudio, FileText, CheckCircle2, Loader2, Settings2, Sparkles, Building2,
-  FileSpreadsheet, FileCode, Trash2, Eye, Plus, Paperclip
+  FileSpreadsheet, FileCode, Trash2, Eye, Plus, Paperclip, ArrowLeft
 } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
@@ -183,6 +183,18 @@ export default function MeetingDetail() {
 
   return (
     <div className="space-y-5">
+      <div>
+        <Link
+          to="/meetings"
+          className="inline-flex items-center gap-2 rounded-lg border border-ink-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-ink-700 shadow-sm transition-all duration-200 hover:border-brand-400 hover:bg-brand-50/80 hover:text-brand-700 hover:shadow group"
+        >
+          <div className="flex h-5 w-5 items-center justify-center rounded-md bg-ink-100 text-ink-600 transition-colors duration-200 group-hover:bg-brand-100 group-hover:text-brand-700">
+            <ArrowLeft size={13} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
+          </div>
+          <span>Back to All Meetings</span>
+        </Link>
+      </div>
+
       <Card className="border border-ink-100 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

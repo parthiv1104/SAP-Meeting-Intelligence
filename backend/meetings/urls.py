@@ -13,13 +13,15 @@ from .views import (
     meeting_documents_view,
     delete_meeting_document,
     get_all_documents,
-    single_meeting_detail
+    single_meeting_detail,
+    get_platform_health_status
 )
 
 router = DefaultRouter()
 router.register(r'', MeetingViewSet, basename='meetings')
 
 urlpatterns = [
+    path('health-check/', get_platform_health_status, name='platform_health_status'),
     path('all-documents/', get_all_documents, name='get_all_documents'),
     path('documents-library/', get_all_documents, name='get_all_documents_alias'),
     path('live-teams/', live_teams_meetings, name='live_teams_meetings'),

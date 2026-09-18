@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
-  User, ShieldCheck, Video, Sparkles, Database, RefreshCw,
-  CheckCircle2, Save, KeyRound, Building2, Sliders, Cpu,
-  CloudCheck, Trash2, ArrowRight, Radio, BellOff, Lock
+  User, Activity, ShieldCheck, CheckCircle2, AlertTriangle, AlertCircle,
+  RefreshCw, Save, Server, Sparkles, Database, FileText, Check, Clock,
+  ArrowRight, ExternalLink, HelpCircle
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
@@ -15,15 +15,13 @@ import { apiFetch } from '../services/apiClient';
 
 const TABS = [
   { id: 'profile', label: 'Consultant Profile', icon: User },
-  { id: 'teams', label: 'Microsoft Teams & Sync', icon: Video },
-  { id: 'ai', label: 'AI Intelligence Engine', icon: Sparkles },
-  { id: 'governance', label: 'Data & Workspace', icon: Database },
+  { id: 'health', label: 'Platform Health & Status', icon: Activity },
 ];
 
 export default function Settings() {
   const { user, updateProfile } = useAuth();
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState('health');
 
   // 1. Profile State
   const [profileForm, setProfileForm] = useState({
@@ -44,34 +42,60 @@ export default function Settings() {
     }
   }, [user]);
 
-  // 2. Microsoft Teams State
-  const [teamsConfig, setTeamsConfig] = useState(() => {
-    const saved = localStorage.getItem('teams_settings');
-    return saved ? JSON.parse(saved) : {
-      autoSync: true,
-      syncInterval: '15',
-      userEmail: user?.email || 'parthiv.dudhrejiya@vcerp.com',
-      connected: true,
-      syncLiveAudio: true,
-    };
-  });
-  const [syncingTeams, setSyncingTeams] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState('Just now');
+  // 2. Platform Health & Diagnostics State
+  const [healthData, setHealthData] = useState(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
+  const [lastCheckTime, setLastCheckTime] = useState(null);
 
-  // 3. AI Intelligence Engine State
-  const [aiConfig, setAiConfig] = useState(() => {
-    const saved = localStorage.getItem('ai_settings');
-    return saved ? JSON.parse(saved) : {
-      model: 'gpt-4o',
-      temperature: 0.2,
-      maxFocusTopics: 5,
-      confidenceThreshold: 85,
-      enableAutoGapAnalysis: true,
-      enableDocumentContext: true,
-      whisperModel: 'whisper-large-v3',
-    };
-  });
-  const [savingAi, setSavingAi] = useState(false);
+  const runHealthCheck = async () => {
+    setCheckingHealth(true);
+    try {
+      const res = await apiFetch('/meetings/health-check/');
+      setHealthData(res);
+      setLastCheckTime(res.timestamp || new Date().toLocaleTimeString());
+      toast?.('Platform diagnostic health check completed!', 'success');
+    } catch (err) {
+      console.error('Health check failed:', err);
+      toast?.('Diagnostic check failed to connect to backend server.', 'critical');
+      // Fallback display
+      setHealthData({
+        overall_status: 'BACKEND SERVER ERROR',
+        status_tone: 'critical',
+        health_score: 0,
+        passed_checks: 0,
+        total_checks: 4,
+        timestamp: new Date().toLocaleTimeString(),
+        checks: [
+          {
+            id: 'server',
+            name: 'Django API Server',
+            category: 'Core Infrastructure',
+            status: 'Offline / Unreachable',
+            healthy: false,
+            latency_ms: 0,
+            details: 'Could not reach http://localhost:8000/api/meetings/health-check/',
+            troubleshooting: 'Ensure backend server is running via `python manage.py runserver`.'
+          }
+        ],
+        issues: [
+          {
+            component: 'Backend API',
+            issue: 'Server connection refused or timed out.',
+            fix: 'Start the Django server on port 8000.'
+          }
+        ]
+      });
+    } finally {
+      setCheckingHealth(false);
+    }
+  };
+
+  // Run health check automatically on initial load or tab switch
+  useEffect(() => {
+    if (activeTab === 'health' && !healthData) {
+      runHealthCheck();
+    }
+  }, [activeTab]);
 
   // Profile Form Handler
   const handleSaveProfile = async (e) => {
@@ -98,57 +122,11 @@ export default function Settings() {
     }
   };
 
-  // Teams Sync Handler
-  const handleTriggerTeamsSync = async () => {
-    setSyncingTeams(true);
-    try {
-      const emailParam = teamsConfig.userEmail ? `?email=${encodeURIComponent(teamsConfig.userEmail)}` : '';
-      const res = await apiFetch(`/meetings/live-teams/${emailParam}`);
-      setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      toast?.(
-        res?.connected
-          ? `Synced ${res.meetings?.length || 0} meetings live from Microsoft Teams!`
-          : 'Calendar refreshed successfully.',
-        'success'
-      );
-    } catch (err) {
-      console.error('Teams sync error:', err);
-      toast?.('Calendar synced with local workspace cache.', 'info');
-    } finally {
-      setSyncingTeams(false);
-    }
-  };
-
-  const handleSaveTeamsConfig = (e) => {
-    e.preventDefault();
-    localStorage.setItem('teams_settings', JSON.stringify(teamsConfig));
-    toast?.('Microsoft Teams integration preferences saved!', 'success');
-  };
-
-  // AI Config Handler
-  const handleSaveAiConfig = (e) => {
-    e.preventDefault();
-    setSavingAi(true);
-    localStorage.setItem('ai_settings', JSON.stringify(aiConfig));
-    setTimeout(() => {
-      setSavingAi(false);
-      toast?.('AI Intelligence Engine parameters updated!', 'success');
-    }, 350);
-  };
-
-  // Cache Clear Handler
-  const handleClearCache = () => {
-    toast?.('Clearing local workspace cache and refreshing sessions...', 'info');
-    setTimeout(() => {
-      window.location.reload();
-    }, 600);
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Settings & Workspace Preferences"
-        description="Configure your consultant profile, Microsoft Teams sync, and AI intelligence engine."
+        title="Settings & Platform Health"
+        description="Manage your consultant identity and verify real-time platform system health."
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[240px_1fr]">
@@ -180,10 +158,10 @@ export default function Settings() {
           {activeTab === 'profile' && (
             <Card className="border border-ink-100 shadow-xs">
               <div className="flex items-center gap-3.5 border-b border-ink-100 pb-4 mb-5">
-                <Avatar name={profileForm.name} size={48} />
+                <Avatar name={profileForm.name} size="lg" />
                 <div>
                   <h3 className="text-base font-bold text-ink-900">{profileForm.name}</h3>
-                  <p className="text-xs text-ink-500">{profileForm.organization}</p>
+                  <p className="text-xs text-ink-500">{profileForm.organization} &bull; Enterprise Consultant</p>
                 </div>
               </div>
 
@@ -194,20 +172,23 @@ export default function Settings() {
                     type="text"
                     value={profileForm.name}
                     onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                    className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+                    className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="Parthiv Dudhrejiya"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-ink-700 mb-1">Work Email (Microsoft Graph Identity)</label>
+                  <label className="block text-xs font-semibold text-ink-700 mb-1">Work Email Address</label>
                   <input
                     type="email"
                     value={profileForm.email}
                     onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                    className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+                    className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="parthiv.dudhrejiya@vc-erp.com"
                     required
                   />
+                  <p className="mt-1 text-[11px] text-ink-400">Used as default identity for live Microsoft 365 calendar synchronization.</p>
                 </div>
 
                 <div>
@@ -216,8 +197,8 @@ export default function Settings() {
                     type="text"
                     value={profileForm.organization}
                     onChange={(e) => setProfileForm({ ...profileForm, organization: e.target.value })}
-                    placeholder="e.g. VC ERP Consulting Group"
-                    className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+                    className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="VC ERP Consulting Group"
                     required
                   />
                 </div>
@@ -231,265 +212,192 @@ export default function Settings() {
             </Card>
           )}
 
-          {/* TAB 2: MICROSOFT TEAMS & LIVE SYNC */}
-          {activeTab === 'teams' && (
-            <div className="space-y-4">
-              <Card className="border border-ink-100 shadow-xs">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 pb-4 mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#464EB8]/10 text-[#464EB8]">
-                      <Video size={20} />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-ink-900 flex items-center gap-2">
-                        Microsoft Teams Calendar Connector
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          Connected &amp; Live
-                        </span>
-                      </h3>
-                      <p className="text-xs text-ink-500">Live calendar sync via Microsoft Graph API</p>
-                    </div>
-                  </div>
-
-                  <Button
-                    variant="secondary"
-                    icon={RefreshCw}
-                    loading={syncingTeams}
-                    onClick={handleTriggerTeamsSync}
-                  >
-                    {syncingTeams ? 'Syncing Graph API...' : 'Trigger Live Sync Now'}
-                  </Button>
-                </div>
-
-                <form onSubmit={handleSaveTeamsConfig} className="space-y-4 max-w-xl">
-                  <div>
-                    <label className="block text-xs font-semibold text-ink-700 mb-1">Connected Microsoft Account</label>
-                    <input
-                      type="text"
-                      value={teamsConfig.userEmail}
-                      onChange={(e) => setTeamsConfig({ ...teamsConfig, userEmail: e.target.value })}
-                      className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
-                    />
-                    <p className="mt-1 text-[11px] text-ink-400">Events from this account's Outlook/Teams calendar are synchronized automatically.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="block text-xs font-semibold text-ink-700 mb-1">Sync Frequency</label>
-                      <select
-                        value={teamsConfig.syncInterval}
-                        onChange={(e) => setTeamsConfig({ ...teamsConfig, syncInterval: e.target.value })}
-                        className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
-                      >
-                        <option value="5">Every 5 minutes</option>
-                        <option value="15">Every 15 minutes (Standard)</option>
-                        <option value="30">Every 30 minutes</option>
-                        <option value="manual">Manual trigger only</option>
-                      </select>
+          {/* TAB 2: PLATFORM HEALTH STATUS */}
+          {activeTab === 'health' && (
+            <div className="space-y-5">
+              {/* Main Overall Health Banner */}
+              <div className={`rounded-2xl border p-5 shadow-xs transition-all ${
+                healthData?.status_tone === 'healthy'
+                  ? 'border-emerald-200 bg-emerald-50/50'
+                  : healthData?.status_tone === 'warning'
+                  ? 'border-amber-200 bg-amber-50/50'
+                  : 'border-rose-200 bg-rose-50/50'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start sm:items-center gap-3.5">
+                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                      healthData?.status_tone === 'healthy'
+                        ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
+                        : healthData?.status_tone === 'warning'
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-rose-600 text-white'
+                    }`}>
+                      {healthData?.status_tone === 'healthy' ? (
+                        <ShieldCheck size={26} />
+                      ) : (
+                        <AlertTriangle size={26} />
+                      )}
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-ink-700 mb-1">Last Graph Sync</label>
-                      <input
-                        type="text"
-                        value={lastSyncTime}
-                        disabled
-                        className="w-full rounded-lg border border-ink-100 bg-ink-50 px-3 py-2 text-sm text-ink-600 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-2 border-t border-ink-100">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={teamsConfig.autoSync}
-                        onChange={(e) => setTeamsConfig({ ...teamsConfig, autoSync: e.target.checked })}
-                        className="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
-                      />
-                      <div>
-                        <p className="text-xs font-semibold text-ink-800">Auto-Sync on Application Launch</p>
-                        <p className="text-[11px] text-ink-400">Pulls scheduled workshops directly when navigating to the Meetings Hub.</p>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base font-bold text-ink-900">
+                          {healthData?.overall_status || 'Checking Platform Status...'}
+                        </h2>
+                        {healthData && (
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                            healthData.status_tone === 'healthy'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            {healthData.health_score}% Healthy
+                          </span>
+                        )}
                       </div>
-                    </label>
-
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={teamsConfig.syncLiveAudio}
-                        onChange={(e) => setTeamsConfig({ ...teamsConfig, syncLiveAudio: e.target.checked })}
-                        className="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
-                      />
-                      <div>
-                        <p className="text-xs font-semibold text-ink-800">Direct Transcript Ingestion</p>
-                        <p className="text-[11px] text-ink-400">Enables 1-click transcript pulling for recorded Teams sessions.</p>
-                      </div>
-                    </label>
+                      <p className="text-xs text-ink-500 mt-0.5">
+                        {healthData?.status_tone === 'healthy'
+                          ? `All ${healthData?.total_checks || 4} core enterprise services are operational with zero detected errors.`
+                          : 'One or more platform services requires your attention. Review details below.'}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="pt-2">
-                    <Button type="submit" icon={Save}>
-                      Save Teams Settings
+                  <div className="flex items-center gap-3 self-end sm:self-center">
+                    {lastCheckTime && (
+                      <span className="text-[11px] text-ink-400 font-mono hidden md:inline">
+                        Checked: {lastCheckTime}
+                      </span>
+                    )}
+                    <Button
+                      variant={healthData?.status_tone === 'healthy' ? 'secondary' : 'primary'}
+                      icon={RefreshCw}
+                      loading={checkingHealth}
+                      onClick={runHealthCheck}
+                    >
+                      Run Health Check Now
                     </Button>
                   </div>
-                </form>
-              </Card>
-            </div>
-          )}
-
-          {/* TAB 3: AI INTELLIGENCE ENGINE */}
-          {activeTab === 'ai' && (
-            <Card className="border border-ink-100 shadow-xs">
-              <div className="flex items-center gap-3 border-b border-ink-100 pb-4 mb-5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-                  <Sparkles size={20} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-ink-900">AI Reasoning &amp; Synthesis Engine</h3>
-                  <p className="text-xs text-ink-500">Fine-tune OpenAI question formulation and gap analysis</p>
                 </div>
               </div>
 
-              <form onSubmit={handleSaveAiConfig} className="space-y-5 max-w-xl">
-                <div>
-                  <label className="block text-xs font-semibold text-ink-700 mb-1">Core LLM Reasoning Model</label>
-                  <select
-                    value={aiConfig.model}
-                    onChange={(e) => setAiConfig({ ...aiConfig, model: e.target.value })}
-                    className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
-                  >
-                    <option value="gpt-4o">GPT-4o (Recommended — High Accuracy Discovery)</option>
-                    <option value="gpt-4o-mini">GPT-4o Mini (High Speed Reasoning)</option>
-                    <option value="gpt-4-turbo">GPT-4 Turbo (Enterprise Blueprint Mode)</option>
-                  </select>
+              {/* Component Health Check Grid */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-ink-900">Component Diagnostic Breakdown</h3>
+                  <span className="text-xs text-ink-500 font-medium">
+                    {healthData?.passed_checks ?? 4} of {healthData?.total_checks ?? 4} Services Operational
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-xs font-semibold text-ink-700">Max Focus Topics</label>
-                      <span className="text-xs font-mono font-bold text-brand-700">{aiConfig.maxFocusTopics} Topics</span>
-                    </div>
-                    <select
-                      value={aiConfig.maxFocusTopics}
-                      onChange={(e) => setAiConfig({ ...aiConfig, maxFocusTopics: parseInt(e.target.value) })}
-                      className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
-                    >
-                      <option value={3}>3 Topics (Concise)</option>
-                      <option value={4}>4 Topics (Standard)</option>
-                      <option value={5}>5 Topics (Maximum Recommended)</option>
-                    </select>
+                <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
+                  {(healthData?.checks || [
+                    { id: 'ms_graph', name: 'Microsoft 365 Teams & Calendar Sync', status: 'Operational', healthy: true, latency_ms: 120, details: 'Azure AD integration verified.' },
+                    { id: 'openai', name: 'OpenAI Intelligence Engine', status: 'Operational', healthy: true, latency_ms: 250, details: 'Model: gpt-4o-mini active.' },
+                    { id: 'database', name: 'Database & Local Workspace Cache', status: 'Operational', healthy: true, latency_ms: 2, details: 'Database connection verified.' },
+                    { id: 'doc_parser', name: 'Scope Document Ingestion Pipeline', status: 'Operational', healthy: true, latency_ms: 0, details: 'Multi-format PDF/Word parser ready.' }
+                  ]).map((c) => {
+                    let Icon = Server;
+                    if (c.id === 'ms_graph') Icon = Activity;
+                    if (c.id === 'openai') Icon = Sparkles;
+                    if (c.id === 'database') Icon = Database;
+                    if (c.id === 'doc_parser') Icon = FileText;
+
+                    return (
+                      <Card
+                        key={c.id}
+                        className={`border p-4 transition-all ${
+                          c.healthy
+                            ? 'border-ink-100 hover:border-emerald-200 bg-white'
+                            : 'border-rose-200 bg-rose-50/20'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                              c.healthy ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                            }`}>
+                              <Icon size={18} />
+                            </div>
+
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-xs font-bold text-ink-900 truncate">{c.name}</h4>
+                              </div>
+                              <p className="text-[11px] text-ink-500 mt-1 leading-relaxed">
+                                {c.details}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 flex flex-col items-end gap-1">
+                            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${
+                              c.healthy
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}>
+                              {c.healthy ? <Check size={10} /> : <AlertCircle size={10} />}
+                              {c.status}
+                            </span>
+                            {c.latency_ms > 0 && (
+                              <span className="text-[10px] text-ink-400 font-mono">
+                                {c.latency_ms}ms
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* If component has troubleshooting tip, show it */}
+                        {c.troubleshooting && (
+                          <div className="mt-3 pt-2.5 border-t border-rose-100 bg-rose-50/60 rounded-lg p-2.5 text-[11px] text-rose-800 flex items-start gap-2">
+                            <HelpCircle size={13} className="shrink-0 mt-0.5 text-rose-600" />
+                            <div>
+                              <span className="font-bold">Recommended Fix: </span>
+                              {c.troubleshooting}
+                            </div>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Troubleshooting & Issues Resolution Section (if any issue occurs) */}
+              {healthData?.issues && healthData.issues.length > 0 && (
+                <Card className="border border-rose-200 bg-rose-50/40 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-rose-800">
+                    <AlertTriangle size={17} />
+                    <h4 className="text-xs font-bold uppercase tracking-wider">Detected Issues &amp; Quick Fix Guide</h4>
                   </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-xs font-semibold text-ink-700">Min Confidence Threshold</label>
-                      <span className="text-xs font-mono font-bold text-brand-700">{aiConfig.confidenceThreshold}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="70"
-                      max="95"
-                      step="5"
-                      value={aiConfig.confidenceThreshold}
-                      onChange={(e) => setAiConfig({ ...aiConfig, confidenceThreshold: parseInt(e.target.value) })}
-                      className="w-full accent-brand-600 cursor-pointer mt-2"
-                    />
+                  <div className="space-y-2">
+                    {healthData.issues.map((iss, i) => (
+                      <div key={i} className="rounded-xl border border-rose-200 bg-white p-3 text-xs space-y-1">
+                        <div className="font-bold text-ink-900 flex items-center gap-2">
+                          <span className="rounded bg-rose-100 text-rose-800 px-1.5 py-0.5 text-[10px] font-mono uppercase">
+                            {iss.component}
+                          </span>
+                          <span>{iss.issue}</span>
+                        </div>
+                        <p className="text-ink-600 text-[11px] pl-1">
+                          <span className="font-semibold text-emerald-700">Resolution:</span> {iss.fix}
+                        </p>
+                      </div>
+                    ))}
                   </div>
+                </Card>
+              )}
+
+              {/* Quick Health Summary Footer */}
+              <div className="rounded-xl border border-ink-100 bg-ink-50/40 p-4 text-xs text-ink-500 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span>Real-time platform monitors MS Graph API, OpenAI Engine, SQLite Database, and Document Parsers.</span>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-ink-700 mb-1">Whisper Speech-to-Text Pipeline</label>
-                  <select
-                    value={aiConfig.whisperModel}
-                    onChange={(e) => setAiConfig({ ...aiConfig, whisperModel: e.target.value })}
-                    className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
-                  >
-                    <option value="whisper-large-v3">Whisper Large v3 (Multi-lingual &amp; High Precision)</option>
-                    <option value="whisper-base">Whisper Base (Fast Processing)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-3 pt-2 border-t border-ink-100">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={aiConfig.enableAutoGapAnalysis}
-                      onChange={(e) => setAiConfig({ ...aiConfig, enableAutoGapAnalysis: e.target.checked })}
-                      className="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
-                    />
-                    <div>
-                      <p className="text-xs font-semibold text-ink-800">Auto-Audit Missed Questions</p>
-                      <p className="text-[11px] text-ink-400">Automatically identifies critical omitted architectural topics during post-meeting audit.</p>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={aiConfig.enableDocumentContext}
-                      onChange={(e) => setAiConfig({ ...aiConfig, enableDocumentContext: e.target.checked })}
-                      className="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
-                    />
-                    <div>
-                      <p className="text-xs font-semibold text-ink-800">Attached Scope Document Augmentation</p>
-                      <p className="text-[11px] text-ink-400">Deeply cross-references uploaded PDF/Word specification drafts to formulate custom questions.</p>
-                    </div>
-                  </label>
-                </div>
-
-                <div className="pt-2">
-                  <Button type="submit" loading={savingAi} icon={Save}>
-                    Save AI Engine Configuration
-                  </Button>
-                </div>
-              </form>
-            </Card>
-          )}
-
-          {/* TAB 4: DATA GOVERNANCE & CACHE */}
-          {activeTab === 'governance' && (
-            <div className="space-y-4">
-              <Card className="border border-ink-100 shadow-xs space-y-4">
-                <div className="flex items-center gap-3 border-b border-ink-100 pb-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                    <ShieldCheck size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-ink-900">Data Governance &amp; Security</h3>
-                    <p className="text-xs text-ink-500">Enterprise data handling and local workspace optimization</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-ink-100 bg-ink-50/50 p-4">
-                    <p className="text-xs font-semibold text-ink-700">Transcript &amp; Audio Encryption</p>
-                    <p className="mt-1 text-xs text-ink-500 leading-relaxed">
-                      Temporary audio streams and media uploads are normalized, securely transcribed, and sanitized automatically.
-                    </p>
-                    <Badge tone="positive" className="mt-3">AES-256 Validated</Badge>
-                  </div>
-
-                  <div className="rounded-xl border border-ink-100 bg-ink-50/50 p-4">
-                    <p className="text-xs font-semibold text-ink-700">Meeting Isolation</p>
-                    <p className="mt-1 text-xs text-ink-500 leading-relaxed">
-                      Uploaded scope documents and AI question caches are isolated per meeting session.
-                    </p>
-                    <Badge tone="brand" className="mt-3">Isolated Per-Meeting</Badge>
-                  </div>
-                </div>
-
-                <div className="border-t border-ink-100 pt-4 flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-bold text-ink-900">Clear Local Workspace Cache</h4>
-                    <p className="text-xs text-ink-500">Purges locally cached questions and resets live graph state.</p>
-                  </div>
-                  <Button variant="secondary" icon={Trash2} onClick={handleClearCache}>
-                    Clear Cache &amp; Reload
-                  </Button>
-                </div>
-              </Card>
+                <span className="font-mono text-[11px] text-ink-400">
+                  Meeting Intelligence v2.0 Enterprise
+                </span>
+              </div>
             </div>
           )}
         </div>
