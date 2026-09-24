@@ -162,7 +162,13 @@ MAILERS = {
 # Allow React frontend (Vite)
 CORS_ALLOW_ALL_ORIGINS = True
 
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-ms-access-token',
+]
+
 # Max upload size (500MB) for video/audio meeting recordings
 DATA_UPLOAD_MAX_MEMORY_SIZE = 524288000
 FILE_UPLOAD_MAX_MEMORY_SIZE = 524288000
 REQUEST_TIMEOUT = 300
+
