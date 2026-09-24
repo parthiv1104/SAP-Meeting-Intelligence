@@ -19,8 +19,8 @@ USER_SCOPES = [
     "https://graph.microsoft.com/User.Read",
     "https://graph.microsoft.com/Calendars.Read",
     "https://graph.microsoft.com/OnlineMeetings.Read",
-    "offline_access"
 ]
+
 
 LOCAL_TZ = ZoneInfo("Asia/Kolkata")
 TIMEZONE_PREFERENCE = os.getenv('MS_TIMEZONE', 'India Standard Time')
