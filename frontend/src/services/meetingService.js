@@ -41,6 +41,15 @@ export const meetingService = {
     return res;
   },
 
+  // Skip a single question and replace with a fresh AI question
+  skipQuestion: async (id, data = {}) => {
+    const res = await apiFetch(`/meetings/${encodeURIComponent(id)}/skip-question/`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res;
+  },
+
   // Get Post-Meeting Intelligence & Analysis
   getAnalysis: async (id, options = {}) => {
     const query = new URLSearchParams(options).toString();

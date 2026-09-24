@@ -16,12 +16,12 @@ export const knowledgeService = {
     const list = await knowledgeService.list();
     return list.map((item, idx) => ({
       id: item.id || `tl-${idx}`,
-      date: 'Recent Milestone',
+      date: item.lastUpdated || item.date || 'Recent',
       title: item.title,
       description: item.content,
       type: item.category || 'Architecture',
       author: item.verifiedBy || 'Project Consultant',
-      status: 'Confirmed'
+      status: item.status || 'Confirmed'
     }));
   },
 };

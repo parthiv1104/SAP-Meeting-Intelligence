@@ -29,19 +29,33 @@ export default function Knowledge() {
   const [activeTab, setActiveTab] = useState('All');
   const [query, setQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
-    loadKnowledge();
+    loadKnowledge(false);
   }, []);
 
-  const loadKnowledge = async () => {
+  const loadKnowledge = async (isManual = false) => {
+    setRefreshing(true);
+    const start = Date.now();
     try {
       const data = await knowledgeService.list();
+      if (isManual) {
+        const elapsed = Date.now() - start;
+        if (elapsed < 600) {
+          await new Promise((r) => setTimeout(r, 600 - elapsed));
+        }
+      }
       setItems(data || []);
+      if (isManual) {
+        toast?.('Knowledge base and decisions refreshed!', 'success');
+      }
     } catch (err) {
       console.error('Failed to load knowledge:', err);
       toast?.('Failed to load knowledge library', 'critical');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -83,7 +97,7 @@ export default function Knowledge() {
   }, [items]);
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 transition-opacity duration-300 ${refreshing ? 'opacity-80' : 'opacity-100'}`}>
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -94,8 +108,14 @@ export default function Knowledge() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="secondary" icon={RefreshCw} onClick={loadKnowledge} title="Refresh knowledge base">
-            Refresh
+          <Button
+            variant="secondary"
+            icon={RefreshCw}
+            loading={refreshing}
+            onClick={() => loadKnowledge(true)}
+            title="Refresh knowledge base"
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
           <Button as={Link} to="/knowledge/timeline" variant="secondary">
             View Timeline &rarr;

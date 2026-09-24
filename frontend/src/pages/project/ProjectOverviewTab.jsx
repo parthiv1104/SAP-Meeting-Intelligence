@@ -103,9 +103,9 @@ export default function ProjectOverviewTab() {
           </div>
           <div className="space-y-2.5">
             {criticalQs.length ? criticalQs.map((q) => (
-              <Link key={q.id} to={`/questions/${q.id}`} className="block text-sm text-ink-700 hover:text-brand-600 leading-snug">
+              <p key={q.id} className="text-sm text-ink-800 leading-snug">
                 {q.text || q.question}
-              </Link>
+              </p>
             )) : <p className="text-sm text-ink-400">No critical questions open.</p>}
           </div>
         </Card>

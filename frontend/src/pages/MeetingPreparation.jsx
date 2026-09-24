@@ -19,6 +19,7 @@ export default function MeetingPreparation() {
   const [prep, setPrep] = useState(null);
   const [meeting, setMeeting] = useState(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [skippingId, setSkippingId] = useState(null);
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -41,6 +42,7 @@ export default function MeetingPreparation() {
         module: meeting?.module || 'Cross-Module',
         industry: meeting?.industry || 'General',
         topic: meeting?.topic || meeting?.name,
+        erp_system: meeting?.erp_system || meeting?.erpSystem || 'SAP S/4HANA (Private / On-Premise)',
       });
       if (res && res.recommendedQuestions && res.recommendedQuestions.length > 0) {
         setPrep(res);
@@ -58,6 +60,43 @@ export default function MeetingPreparation() {
     }
   };
 
+  const handleSkipQuestion = async (item) => {
+    const qKey = item.id || item.question;
+    setSkippingId(qKey);
+    toast?.('Generating replacement question with AI...', 'info');
+
+    try {
+      const existingQs = (prep?.recommendedQuestions || []).map((q) => q.question);
+      const res = await meetingService.skipQuestion(id, {
+        skipped_id: item.id || '',
+        skipped_question: item.question || '',
+        existing_questions: existingQs,
+      });
+
+      if (res && res.newQuestion) {
+        setPrep((prev) => {
+          if (!prev) return prev;
+          const currentList = prev.recommendedQuestions || [];
+          const updated = currentList.map((q) =>
+            (q.id && item.id && q.id === item.id) || q.question === item.question ? res.newQuestion : q
+          );
+          return { ...prev, recommendedQuestions: updated };
+        });
+        toast?.('Question replaced with a new AI discovery question!', 'success');
+      } else if (res && Array.isArray(res.recommendedQuestions)) {
+        setPrep((prev) => ({ ...prev, recommendedQuestions: res.recommendedQuestions }));
+        toast?.('Question replaced successfully!', 'success');
+      } else {
+        loadPreparation(true);
+      }
+    } catch (err) {
+      console.error('Skip question error:', err);
+      toast?.(`Could not replace question: ${err.message || 'Error occurred'}`, 'error');
+    } finally {
+      setSkippingId(null);
+    }
+  };
+
   const handleAction = (item, action) => {
     toast?.(`Question marked "${action}"`, action === 'Asked' ? 'success' : 'info');
   };
@@ -65,13 +104,19 @@ export default function MeetingPreparation() {
   if (!prep) return <SkeletonGrid count={4} />;
 
   const domainInfo = getMeetingDomain(meeting || { name: prep.meetingName, module: prep.moduleLabel });
-  const questions = prep.recommendedQuestions || [];
-  const readiness = prep.readiness || { overall: 90, projectKnowledge: 92, openRequirements: 86, questionCoverage: 88 };
-  const participants = prep.participants || (meeting?.attendees?.length ? meeting.attendees.map(a => ({ name: typeof a === 'string' ? a : a.name })) : [
-    { name: 'Lead Consultant (VC ERP)' },
-    { name: 'Domain Stakeholder' }
-  ]);
-  
+  const readinessScore = prep.readinessScore || prep.readiness?.overall || meeting?.preparation_score || (questions.length > 0 ? 90 : 70);
+  const readiness = prep.readiness || {
+    overall: readinessScore,
+    projectKnowledge: Math.min(100, readinessScore + 2),
+    openRequirements: Math.max(60, readinessScore - 4),
+    questionCoverage: readinessScore
+  };
+  const participants = (prep.participants && prep.participants.length > 0)
+    ? prep.participants
+    : (meeting?.attendees && meeting.attendees.length > 0
+        ? meeting.attendees.map((a) => ({ name: typeof a === 'string' ? a : (a.name || a.displayName || a.emailAddress?.name || 'Participant') }))
+        : (meeting?.organizer ? [{ name: meeting.organizer }] : []));
+
   // Enforce MAXIMUM 5 Focus Topics
   const topics = (prep.topics || domainInfo.defaultTopics || []).slice(0, 5);
 
@@ -118,6 +163,14 @@ export default function MeetingPreparation() {
                 <Badge tone={b.tone === 'brand' ? 'brand' : 'neutral'}>{b.label}</Badge>
               </span>
             ))}
+            {(meeting?.erp_system || meeting?.erpSystem) && (
+              <span className="flex items-center gap-1.5">
+                <span className="text-xs text-ink-300">•</span>
+                <span className="font-semibold px-2 py-0.5 rounded text-xs text-indigo-800 bg-indigo-50 border border-indigo-200">
+                  {meeting.erp_system || meeting.erpSystem}
+                </span>
+              </span>
+            )}
           </div>
           <h1 className="mt-0.5 text-xl font-bold text-ink-900">{prep.meetingName || meeting?.name} — Pre-Meeting Preparation</h1>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-ink-500">
@@ -149,7 +202,7 @@ export default function MeetingPreparation() {
           <Button
             variant="secondary"
             icon={RefreshCw}
-            disabled={regenerating}
+            loading={regenerating}
             onClick={handleRegenerate}
             title="Query OpenAI to generate fresh questions customized for this meeting topic & domain"
           >
@@ -221,9 +274,18 @@ export default function MeetingPreparation() {
         </div>
 
         <div className="space-y-3">
-          {questions.map((q) => (
-            <RecommendedQuestionCard key={q.id || q.question} item={q} onAction={handleAction} />
-          ))}
+          {questions.map((q) => {
+            const qKey = q.id || q.question;
+            return (
+              <RecommendedQuestionCard
+                key={qKey}
+                item={q}
+                onAction={handleAction}
+                onSkip={handleSkipQuestion}
+                isSkipping={skippingId === qKey}
+              />
+            );
+          })}
         </div>
       </div>
 

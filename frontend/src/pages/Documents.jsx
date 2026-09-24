@@ -38,26 +38,40 @@ export default function Documents() {
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
+  const [refreshing, setRefreshing] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
-    loadData();
+    loadData(false);
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (isManual = false) => {
+    setRefreshing(true);
+    const start = Date.now();
     try {
       const [docsData, meetingsData] = await Promise.all([
         documentService.list(),
         meetingService.list()
       ]);
+      if (isManual) {
+        const elapsed = Date.now() - start;
+        if (elapsed < 600) {
+          await new Promise((r) => setTimeout(r, 600 - elapsed));
+        }
+      }
       setDocs(docsData || []);
       setMeetings(meetingsData || []);
       if (meetingsData && meetingsData.length > 0 && !selectedMeetingId) {
         setSelectedMeetingId(meetingsData[0].id);
       }
+      if (isManual) {
+        toast?.('Scope documents repository refreshed!', 'success');
+      }
     } catch (err) {
       console.error('Failed to load documents data:', err);
       toast?.('Failed to load documents', 'critical');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -177,7 +191,7 @@ export default function Documents() {
   }, [docs]);
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 transition-opacity duration-300 ${refreshing ? 'opacity-80' : 'opacity-100'}`}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-ink-900">Project &amp; Meeting Documents</h1>
@@ -187,8 +201,14 @@ export default function Documents() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="secondary" icon={RefreshCw} onClick={loadData} title="Refresh documents list">
-            Refresh
+          <Button
+            variant="secondary"
+            icon={RefreshCw}
+            loading={refreshing}
+            onClick={() => loadData(true)}
+            title="Refresh documents list"
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
           <Button icon={Upload} onClick={() => setUploadOpen(true)}>
             Upload Document

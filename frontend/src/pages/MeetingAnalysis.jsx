@@ -7,7 +7,7 @@ import MetricCard from '../components/dashboard/MetricCard';
 import Modal from '../components/ui/Modal';
 import { SkeletonGrid } from '../components/ui/Skeleton';
 import { meetingService } from '../services/meetingService';
-import { AlertTriangle, UploadCloud, FileText, ArrowLeft, Loader2, Sparkles, RefreshCw, CheckCircle2, Printer } from 'lucide-react';
+import { AlertTriangle, UploadCloud, FileText, ArrowLeft, Loader2, Sparkles, RefreshCw, CheckCircle2, Printer, ChevronRight, ChevronDown, MessageSquare } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import AiProcessingLoader from '../components/ui/AiProcessingLoader';
 
@@ -20,6 +20,7 @@ export default function MeetingAnalysis() {
   const [meeting, setMeeting] = useState(null);
   const [showTranscript, setShowTranscript] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [expandedQuestion, setExpandedQuestion] = useState(null);
 
   // Upload modal state
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -45,6 +46,7 @@ export default function MeetingAnalysis() {
         topic: meeting?.topic || meeting?.name,
         module: meeting?.module || 'Cross-Module',
         industry: meeting?.industry || 'General',
+        erp_system: meeting?.erp_system || meeting?.erpSystem || 'SAP S/4HANA (Private / On-Premise)',
         transcript: meeting?.transcript || '',
       });
       if (res && res.summary) {
@@ -73,6 +75,7 @@ export default function MeetingAnalysis() {
         topic: meeting?.topic || meeting?.name,
         module: meeting?.module || 'Cross-Module',
         industry: meeting?.industry || 'General',
+        erp_system: meeting?.erp_system || meeting?.erpSystem || 'SAP S/4HANA (Private / On-Premise)',
       });
       toast?.('Media processed & AI analysis updated!', 'success');
       setUploadModalOpen(false);
@@ -98,13 +101,13 @@ export default function MeetingAnalysis() {
   const domainInfo = getMeetingDomain(meeting || { name: a.meetingName, module: a.project });
 
   const summary = a.summary || {
-    questionsIdentified: 10,
-    asked: 8,
-    answered: 7,
-    partial: 1,
-    missed: 2,
-    newRequirements: 3,
-    decisions: 2
+    questionsIdentified: ((a.questions || []).length) + ((a.criticalMissedQuestions || []).length),
+    asked: (a.questions || []).length,
+    answered: (a.questions || []).filter((q) => q.status === 'Answered').length,
+    partial: (a.questions || []).filter((q) => q.status === 'Partial').length,
+    missed: (a.criticalMissedQuestions || []).length,
+    newRequirements: (a.newRequirements || []).length,
+    decisions: (a.decisions || []).length
   };
 
   return (
@@ -177,7 +180,7 @@ export default function MeetingAnalysis() {
           <Button
             variant="secondary"
             icon={RefreshCw}
-            disabled={reanalyzing}
+            loading={reanalyzing}
             onClick={handleReanalyze}
             title="Re-audit transcript with OpenAI to discover new gaps and requirements"
           >
@@ -221,24 +224,66 @@ export default function MeetingAnalysis() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <h3 className="mb-3 text-sm font-bold text-ink-900 flex items-center gap-1.5">
-            <CheckCircle2 size={16} className="text-success-600" />
-            Questions Asked &amp; Answered During Session
-          </h3>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-ink-900 flex items-center gap-1.5">
+              <CheckCircle2 size={16} className="text-success-600" />
+              Questions Asked &amp; Answered ({(a.questionsAsked || []).length})
+            </h3>
+            <span className="text-[11px] text-ink-400">Click to view answer</span>
+          </div>
           <div className="space-y-2.5">
-            {(a.questionsAsked || []).map((q, i) => (
-              <div key={i} className="flex items-start justify-between gap-3 text-sm border-b border-ink-50 pb-2 last:border-0 last:pb-0">
-                <p className="text-ink-800 leading-snug">{q.question}</p>
-                <Badge tone={q.status === 'Answered' ? 'positive' : 'warning'}>{q.status}</Badge>
-              </div>
-            ))}
+            {(a.questionsAsked || []).map((q, i) => {
+              const isExpanded = expandedQuestion === i;
+              return (
+                <div
+                  key={i}
+                  onClick={() => setExpandedQuestion(isExpanded ? null : i)}
+                  className={`rounded-xl border transition-all duration-200 cursor-pointer overflow-hidden ${
+                    isExpanded
+                      ? 'border-brand-300 bg-brand-50/20 shadow-xs'
+                      : 'border-ink-100 bg-white hover:border-brand-200 hover:bg-ink-50/40'
+                  }`}
+                >
+                  <div className="p-3 flex items-start justify-between gap-3 text-sm">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <span className={`mt-0.5 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-90 text-brand-600' : 'text-ink-400'}`}>
+                        <ChevronRight size={15} />
+                      </span>
+                      <p className={`font-medium leading-snug ${isExpanded ? 'text-brand-950 font-semibold' : 'text-ink-800'}`}>
+                        {q.question}
+                      </p>
+                    </div>
+                    <Badge tone={q.status === 'Answered' ? 'positive' : (q.status === 'Partial' ? 'warning' : 'neutral')} className="shrink-0">
+                      {q.status || 'Answered'}
+                    </Badge>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="px-3.5 pb-3 pt-2 border-t border-brand-100/60 bg-white/80 space-y-1.5 text-xs text-ink-700 animate-in fade-in duration-150">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                        <MessageSquare size={13} className="text-emerald-600" />
+                        <span>Discussion &amp; Answer:</span>
+                      </div>
+                      <p className="leading-relaxed text-ink-800 pl-5">
+                        {q.answer || 'This question was addressed and discussed during the session.'}
+                      </p>
+                      {q.answeredBy && (
+                        <p className="text-[11px] text-ink-400 pl-5">
+                          Speaker: <span className="font-medium text-ink-600">{q.answeredBy}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Card>
 
         <Card className="border-critical-200 bg-critical-50/10">
           <h3 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-critical-700">
             <AlertTriangle size={16} className="text-critical-600" />
-            Critical Missed Questions (SAP Gaps)
+            Critical Missed Questions ({meeting?.erp_system?.includes('SAP') ? 'SAP Architecture Gaps' : (meeting?.module === 'AI & Data' || meeting?.industry?.includes('Intelligence') ? 'AI & Architecture Gaps' : 'Scope & Architecture Gaps')})
           </h3>
           <p className="mb-3 text-xs text-ink-500">
             High-risk architectural questions that were omitted during the workshop:

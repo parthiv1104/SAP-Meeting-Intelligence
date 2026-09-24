@@ -1,11 +1,11 @@
 import { Loader2 } from 'lucide-react';
 
 const VARIANTS = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700 focus-visible:outline-brand-600',
-  secondary: 'bg-white text-ink-700 border border-ink-200 hover:bg-ink-50',
-  ghost: 'text-ink-600 hover:bg-ink-100',
-  danger: 'bg-critical-500 text-white hover:bg-critical-600',
-  success: 'bg-success-500 text-white hover:bg-success-600',
+  primary: 'bg-brand-600 text-white hover:bg-brand-700 active:scale-[0.98] focus-visible:outline-brand-600 shadow-xs',
+  secondary: 'bg-white text-ink-700 border border-ink-200 hover:bg-ink-50 hover:border-ink-300 active:scale-[0.98] shadow-2xs',
+  ghost: 'text-ink-600 hover:bg-ink-100 active:scale-[0.98]',
+  danger: 'bg-critical-500 text-white hover:bg-critical-600 active:scale-[0.98]',
+  success: 'bg-success-500 text-white hover:bg-success-600 active:scale-[0.98]',
 };
 
 const SIZES = {
@@ -27,12 +27,12 @@ export default function Button({
   ...rest
 }) {
   const isSpinner = loading || Icon === Loader2;
-  const EffectiveIcon = loading ? Loader2 : Icon;
+  const EffectiveIcon = loading ? (Icon || Loader2) : Icon;
 
   return (
     <As
       disabled={disabled || loading}
-      className={`focus-ring inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`focus-ring inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...rest}
     >
       {EffectiveIcon && (

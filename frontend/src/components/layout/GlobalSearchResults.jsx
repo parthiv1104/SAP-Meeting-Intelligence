@@ -33,7 +33,7 @@ export default function GlobalSearchResults({ query, onNavigate }) {
       label: 'Questions',
       items: (questions || []).filter((q) => matches(q.text || q.question, query))
         .slice(0, 4)
-        .map((q) => ({ title: q.text || q.question, subtitle: q.module, path: `/questions/${q.id}` })),
+        .map((q) => ({ title: q.text || q.question, subtitle: q.module, path: '/questions' })),
     },
     {
       label: 'Knowledge & Decisions',

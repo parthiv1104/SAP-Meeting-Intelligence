@@ -7,16 +7,16 @@ import AppShell from './components/layout/AppShell';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 
+import Projects from './pages/Projects';
+import ProjectNew from './pages/ProjectNew';
+import ProjectDetail from './pages/ProjectDetail';
+
 import Meetings from './pages/Meetings';
 import MeetingDetail from './pages/MeetingDetail';
 import MeetingPreparation from './pages/MeetingPreparation';
 import MeetingAnalysis from './pages/MeetingAnalysis';
 
 import Questions from './pages/Questions';
-import QuestionDetail from './pages/QuestionDetail';
-import MissedQuestions from './pages/MissedQuestions';
-import FrequentlyAsked from './pages/FrequentlyAsked';
-import FrequentlyMissed from './pages/FrequentlyMissed';
 
 import Knowledge from './pages/Knowledge';
 import KnowledgeTimeline from './pages/KnowledgeTimeline';
@@ -43,8 +43,10 @@ export default function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
 
-            <Route path="/projects" element={<Navigate to="/meetings" replace />} />
-            <Route path="/projects/*" element={<Navigate to="/meetings" replace />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/projects/new" element={<ProjectNew />} />
+            <Route path="/projects/:id" element={<ProjectDetail />} />
+
 
             <Route path="/meetings" element={<Meetings />} />
             <Route path="/meetings/:id" element={<MeetingDetail />} />
@@ -52,10 +54,6 @@ export default function App() {
             <Route path="/meetings/:id/analysis" element={<MeetingAnalysis />} />
 
             <Route path="/questions" element={<Questions />} />
-            <Route path="/questions/faq" element={<FrequentlyAsked />} />
-            <Route path="/questions/missed" element={<MissedQuestions />} />
-            <Route path="/questions/frequently-missed" element={<FrequentlyMissed />} />
-            <Route path="/questions/:id" element={<QuestionDetail />} />
 
             <Route path="/knowledge" element={<Knowledge />} />
             <Route path="/knowledge/timeline" element={<KnowledgeTimeline />} />

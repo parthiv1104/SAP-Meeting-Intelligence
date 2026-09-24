@@ -9,10 +9,161 @@ from rest_framework.response import Response
 
 from .models import Meeting, MeetingDocument
 from .serializers import MeetingSerializer, MeetingDocumentSerializer
+from projects.models import Project, ProjectDocument
 from .ms_teams import get_live_teams_meetings, fetch_teams_meetings, fetch_single_teams_meeting, fetch_teams_meeting_transcript
-from .ai_service import generate_pre_meeting_preparation, analyze_post_meeting_transcript, is_sap_context
+from .ai_service import (
+    generate_pre_meeting_preparation,
+    generate_replacement_question,
+    analyze_post_meeting_transcript,
+    is_sap_context
+)
 from .transcription_service import extract_audio_from_video, transcribe_audio
 from .document_service import extract_text_from_file, format_file_size
+
+def build_project_cross_meeting_context(meeting):
+    """
+    Synthesizes institutional memory across all prior workshops/meetings in the same Project.
+    """
+    if not meeting or not meeting.project:
+        return ""
+    
+    project = meeting.project
+    other_meetings = Meeting.objects.filter(project=project).exclude(id=meeting.id).order_by('created_at')
+    
+    if not other_meetings.exists() and not project.cumulative_requirements and not project.cumulative_decisions:
+        return f"Project: {project.name} (Client: {project.client}, Industry: {project.industry}, ERP Architecture: {project.sap_product}). This is the initial workshop for this project."
+
+    context_lines = [
+        f"PROJECT MASTER PROFILE:",
+        f"- Project Name: {project.name}",
+        f"- Client: {project.client}",
+        f"- Industry: {project.industry}",
+        f"- ERP Scope: {project.sap_product}",
+        f"- Modules in Scope: {', '.join(project.modules) if project.modules else 'Enterprise-wide'}",
+        f"- Project Manager: {project.project_manager or 'Lead Architect'}",
+        ""
+    ]
+
+    if project.cumulative_requirements:
+        context_lines.append("CUMULATIVE REQUIREMENTS IDENTIFIED SO FAR IN PREVIOUS WORKSHOPS:")
+        for r in project.cumulative_requirements[:20]:
+            req_id = r.get('id', 'REQ')
+            req_text = r.get('requirement', '') or r.get('text', '')
+            mod = r.get('module', '')
+            status_val = r.get('status', 'Confirmed')
+            src = r.get('source_meeting_name', '')
+            context_lines.append(f"  * [{req_id}] ({mod}) {req_text} [Status: {status_val}] (Source: {src})")
+        context_lines.append("")
+
+    if project.cumulative_decisions:
+        context_lines.append("CONFIRMED ARCHITECTURAL & PROCESS DECISIONS FROM PRIOR SESSIONS:")
+        for d in project.cumulative_decisions[:20]:
+            dec_id = d.get('id', 'DEC')
+            dec_text = d.get('decision', '') or d.get('text', '')
+            impact = d.get('impact', '')
+            context_lines.append(f"  * [{dec_id}] {dec_text} (Impact: {impact})")
+        context_lines.append("")
+
+    # Also extract any open / missed questions from previous meetings
+    prior_open_questions = []
+    for m in other_meetings:
+        if m.post_meeting_analysis and isinstance(m.post_meeting_analysis, dict):
+            for missed_q in m.post_meeting_analysis.get('missed_questions', []):
+                q_text = missed_q.get('question') if isinstance(missed_q, dict) else str(missed_q)
+                if q_text:
+                    prior_open_questions.append(f"  * (From {m.name}): {q_text}")
+    
+    if prior_open_questions:
+        context_lines.append("UNRESOLVED / OPEN QUESTIONS FROM PREVIOUS WORKSHOPS THAT NEED RESOLUTION:")
+        context_lines.extend(prior_open_questions[:10])
+        context_lines.append("")
+
+    return "\n".join(context_lines)
+
+def sync_project_cumulative_intelligence(meeting, analysis_results):
+    """
+    Automatically integrates newly discovered requirements, decisions, and risks
+    from a meeting analysis into the parent Project's cumulative repository.
+    """
+    if not meeting or not meeting.project or not isinstance(analysis_results, dict):
+        return
+
+    project = meeting.project
+    existing_reqs = list(project.cumulative_requirements or [])
+    existing_decs = list(project.cumulative_decisions or [])
+    existing_risks = list(project.cumulative_risks or [])
+
+    # 1. Merge Requirements
+    new_reqs = analysis_results.get('newRequirements', []) or analysis_results.get('requirements', [])
+    for nr in new_reqs:
+        text = nr.get('requirement', '') or nr.get('text', '') if isinstance(nr, dict) else str(nr)
+        if not text:
+            continue
+        # Check if already present
+        if not any(text.lower() in (r.get('requirement', '') or r.get('text', '')).lower() for r in existing_reqs):
+            req_num = len(existing_reqs) + 1
+            existing_reqs.append({
+                'id': f"REQ-{req_num:03d}",
+                'requirement': text,
+                'module': nr.get('module', meeting.module) if isinstance(nr, dict) else meeting.module,
+                'status': 'Confirmed',
+                'priority': nr.get('priority', 'High') if isinstance(nr, dict) else 'High',
+                'source_meeting_id': str(meeting.id),
+                'source_meeting_name': meeting.name,
+                'impact': nr.get('impact', '') if isinstance(nr, dict) else ''
+            })
+
+    # 2. Merge Decisions
+    new_decs = analysis_results.get('decisions', [])
+    for nd in new_decs:
+        text = nd.get('decision', '') or nd.get('text', '') if isinstance(nd, dict) else str(nd)
+        if not text:
+            continue
+        if not any(text.lower() in (d.get('decision', '') or d.get('text', '')).lower() for d in existing_decs):
+            dec_num = len(existing_decs) + 1
+            existing_decs.append({
+                'id': f"DEC-{dec_num:03d}",
+                'decision': text,
+                'module': nd.get('module', meeting.module) if isinstance(nd, dict) else meeting.module,
+                'status': 'Finalized',
+                'source_meeting_id': str(meeting.id),
+                'source_meeting_name': meeting.name,
+                'impact': nd.get('impact', '') if isinstance(nd, dict) else ''
+            })
+
+    # 3. Merge Risks
+    new_risks = analysis_results.get('risks', [])
+    for nr in new_risks:
+        text = nr.get('risk', '') or nr.get('text', '') if isinstance(nr, dict) else str(nr)
+        if not text:
+            continue
+        if not any(text.lower() in (rk.get('risk', '') or rk.get('text', '')).lower() for rk in existing_risks):
+            risk_num = len(existing_risks) + 1
+            existing_risks.append({
+                'id': f"RSK-{risk_num:03d}",
+                'risk': text,
+                'severity': nr.get('severity', 'Medium') if isinstance(nr, dict) else 'Medium',
+                'mitigation': nr.get('mitigation', '') if isinstance(nr, dict) else '',
+                'source_meeting_id': str(meeting.id),
+                'source_meeting_name': meeting.name,
+            })
+
+    project.cumulative_requirements = existing_reqs
+    project.cumulative_decisions = existing_decs
+    project.cumulative_risks = existing_risks
+
+    # Update project progress & scores
+    total_meetings = project.meetings.count()
+    analyzed_meetings = project.meetings.filter(analysis_status='Analyzed').count()
+    if total_meetings > 0:
+        project.progress = int((analyzed_meetings / total_meetings) * 100)
+    
+    req_count = len(existing_reqs)
+    dec_count = len(existing_decs)
+    project.knowledge_coverage = min(98, 30 + (req_count * 5) + (dec_count * 6)) if (req_count + dec_count) > 0 else 20
+    project.health_score = max(70, min(99, 75 + (analyzed_meetings * 5)))
+    project.save()
+
 
 class MeetingViewSet(viewsets.ModelViewSet):
     """
@@ -191,6 +342,7 @@ def sync_teams_transcript(request, meeting_id):
     module = meeting.module if meeting else 'Cross-Module'
     industry = meeting.industry if meeting else 'General'
 
+    erp_system = meeting.erp_system if meeting and meeting.erp_system else 'SAP S/4HANA (Private / On-Premise)'
     docs = MeetingDocument.objects.filter(meeting=meeting) if meeting else []
     doc_context = "\n\n".join([f"=== File: {d.filename} ===\n{d.extracted_text}" for d in docs if d.extracted_text])
 
@@ -199,7 +351,8 @@ def sync_teams_transcript(request, meeting_id):
         topic=topic,
         module=module,
         industry=industry,
-        document_context=doc_context
+        document_context=doc_context,
+        erp_system=erp_system
     )
 
     if meeting:
@@ -207,6 +360,7 @@ def sync_teams_transcript(request, meeting_id):
         meeting.post_meeting_analysis = analysis_results
         meeting.analysis_status = 'Analyzed'
         meeting.save(update_fields=['transcript', 'post_meeting_analysis', 'analysis_status'])
+        sync_project_cumulative_intelligence(meeting, analysis_results)
 
     return Response({
         'status': 'success',
@@ -219,7 +373,8 @@ def sync_teams_transcript(request, meeting_id):
 def meeting_preparation_detail(request, meeting_id):
     """
     Pathway 3: Pre-Meeting Intelligence
-    Generates or fetches pre-meeting preparation checklist, agenda, and must-ask questions dynamically.
+    Generates or fetches pre-meeting preparation checklist, agenda, and must-ask questions dynamically,
+    cross-referenced with Project history, confirmed decisions, and project-wide scope documents.
     """
     meeting = Meeting.objects.filter(id=meeting_id).first() or Meeting.objects.filter(teams_meeting_id=meeting_id).first()
     
@@ -228,6 +383,7 @@ def meeting_preparation_detail(request, meeting_id):
     module = request.GET.get('module') or request.data.get('module') or (meeting.module if meeting else 'Cross-Module')
     topic = request.GET.get('topic') or request.data.get('topic') or (meeting.topic if meeting else (meeting.name if meeting else 'Meeting Session'))
     industry = request.GET.get('industry') or request.data.get('industry') or (meeting.industry if meeting else 'General')
+    erp_system = request.GET.get('erp_system') or request.data.get('erp_system') or (meeting.erp_system if meeting else 'SAP S/4HANA (Private / On-Premise)')
     meeting_name = meeting.name if meeting else topic
     is_sap = is_sap_context(module, topic, meeting_name)
 
@@ -248,15 +404,21 @@ def meeting_preparation_detail(request, meeting_id):
     else:
         project_name = "SAP S/4HANA Enterprise Transformation" if is_sap else f"{meeting_name} Workspace"
 
-    # Pull any documents attached specifically to this meeting
+    # Pull documents attached specifically to this meeting AND project-wide documents
+    doc_pieces = []
     docs = MeetingDocument.objects.filter(meeting=meeting) if meeting else []
-    doc_context = ""
-    if docs:
-        doc_pieces = []
-        for d in docs:
-            if d.extracted_text and d.extracted_text.strip():
-                doc_pieces.append(f"=== File: {d.filename} ({d.file_type}) ===\n{d.extracted_text}")
-        doc_context = "\n\n".join(doc_pieces)
+    for d in docs:
+        if d.extracted_text and d.extracted_text.strip():
+            doc_pieces.append(f"=== Meeting Document: {d.filename} ({d.file_type}) ===\n{d.extracted_text}")
+            
+    if meeting and meeting.project:
+        proj_docs = ProjectDocument.objects.filter(project=meeting.project)
+        for pd in proj_docs:
+            if pd.extracted_text and pd.extracted_text.strip():
+                doc_pieces.append(f"=== Project Blueprint / BRD: {pd.filename} ({pd.file_type}) ===\n{pd.extracted_text}")
+
+    doc_context = "\n\n".join(doc_pieces)
+    cross_meeting_context = build_project_cross_meeting_context(meeting)
 
     try:
         prep_data = generate_pre_meeting_preparation(
@@ -265,7 +427,9 @@ def meeting_preparation_detail(request, meeting_id):
             module=module,
             project_name=project_name,
             meeting_name=meeting_name,
-            document_context=doc_context
+            document_context=doc_context,
+            erp_system=erp_system,
+            cross_meeting_context=cross_meeting_context
         )
     except Exception as e:
         return Response({
@@ -285,9 +449,79 @@ def meeting_preparation_detail(request, meeting_id):
             meeting.industry = industry
         if 'topic' in request.data:
             meeting.topic = topic
-        meeting.save(update_fields=['pre_meeting_preparation', 'module', 'industry', 'topic'])
+        if 'erp_system' in request.data:
+            meeting.erp_system = erp_system
+        meeting.save(update_fields=['pre_meeting_preparation', 'module', 'industry', 'topic', 'erp_system'])
 
     return Response(prep_data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def replace_skipped_question_view(request, meeting_id):
+    """
+    Pathway 3: Dynamically replaces a single skipped discovery question with a brand new AI question.
+    """
+    meeting = get_or_create_meeting_by_id(meeting_id, request)
+    if not meeting:
+        return Response({'error': 'Meeting not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    skipped_question = request.data.get('skipped_question', '')
+    skipped_id = request.data.get('skipped_id', '')
+    existing_questions = request.data.get('existing_questions', [])
+
+    topic = meeting.topic or meeting.name or "Project Scope"
+    module = meeting.module or "Cross-Module"
+    industry = meeting.industry or "General"
+    erp_system = meeting.erp_system or "SAP S/4HANA (Private / On-Premise)"
+    meeting_name = meeting.name or "Project Meeting"
+    project_name = meeting.project.name if meeting.project else f"{meeting_name} Workspace"
+
+    docs = MeetingDocument.objects.filter(meeting=meeting)
+    doc_context = ""
+    if docs:
+        doc_pieces = []
+        for d in docs:
+            if d.extracted_text and d.extracted_text.strip():
+                doc_pieces.append(f"=== File: {d.filename} ===\n{d.extracted_text}")
+        doc_context = "\n\n".join(doc_pieces)
+
+    try:
+        new_q = generate_replacement_question(
+            topic=topic,
+            industry=industry,
+            module=module,
+            project_name=project_name,
+            meeting_name=meeting_name,
+            document_context=doc_context,
+            skipped_question=skipped_question,
+            existing_questions=existing_questions,
+            erp_system=erp_system
+        )
+    except Exception as e:
+        return Response({
+            'error': str(e),
+            'message': f'Failed to generate replacement question: {str(e)}'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # Update meeting pre_meeting_preparation in place
+    if meeting.pre_meeting_preparation and isinstance(meeting.pre_meeting_preparation, dict):
+        rq_list = meeting.pre_meeting_preparation.get('recommendedQuestions', [])
+        replaced = False
+        for idx, item in enumerate(rq_list):
+            if (skipped_id and item.get('id') == skipped_id) or (skipped_question and item.get('question') == skipped_question):
+                rq_list[idx] = new_q
+                replaced = True
+                break
+        if not replaced:
+            rq_list.append(new_q)
+        meeting.pre_meeting_preparation['recommendedQuestions'] = rq_list
+        meeting.save(update_fields=['pre_meeting_preparation'])
+
+    return Response({
+        'status': 'success',
+        'newQuestion': new_q,
+        'recommendedQuestions': meeting.pre_meeting_preparation.get('recommendedQuestions', [new_q]) if meeting.pre_meeting_preparation else [new_q]
+    }, status=status.HTTP_200_OK)
 
 @api_view(['GET', 'POST'])
 def meeting_documents_view(request, meeting_id):
@@ -485,6 +719,8 @@ def upload_meeting_media(request, meeting_id):
     module = request.data.get('module') or (meeting.module if meeting else 'MM')
     industry = request.data.get('industry') or (meeting.industry if meeting else 'Manufacturing')
 
+    erp_system = request.data.get('erp_system') or (meeting.erp_system if meeting and meeting.erp_system else 'SAP S/4HANA (Private / On-Premise)')
+
     # Pull any attached documents for scope gap analysis
     docs = MeetingDocument.objects.filter(meeting=meeting) if meeting else []
     doc_context = "\n\n".join([f"=== File: {d.filename} ===\n{d.extracted_text}" for d in docs if d.extracted_text])
@@ -496,7 +732,8 @@ def upload_meeting_media(request, meeting_id):
             topic=topic,
             module=module,
             industry=industry,
-            document_context=doc_context
+            document_context=doc_context,
+            erp_system=erp_system
         )
     except Exception as e:
         return Response({
@@ -509,6 +746,7 @@ def upload_meeting_media(request, meeting_id):
         meeting.post_meeting_analysis = analysis_results
         meeting.analysis_status = 'Analyzed'
         meeting.save(update_fields=['transcript', 'post_meeting_analysis', 'analysis_status'])
+        sync_project_cumulative_intelligence(meeting, analysis_results)
 
     return Response({
         'status': 'success',
@@ -527,9 +765,10 @@ def get_meeting_analysis(request, meeting_id):
     if meeting and meeting.post_meeting_analysis and not force_refresh:
         return Response(meeting.post_meeting_analysis, status=status.HTTP_200_OK)
     
-    topic = request.data.get('topic') or (meeting.topic if meeting else "SAP Workshop")
-    module = request.data.get('module') or (meeting.module if meeting else "MM")
-    industry = request.data.get('industry') or (meeting.industry if meeting else "Manufacturing")
+    topic = request.data.get('topic') or (meeting.topic if meeting else "Project Workshop")
+    module = request.data.get('module') or (meeting.module if meeting else "Cross-Module")
+    industry = request.data.get('industry') or (meeting.industry if meeting else "General")
+    erp_system = request.data.get('erp_system') or (meeting.erp_system if meeting and meeting.erp_system else "SAP S/4HANA (Private / On-Premise)")
     transcript = request.data.get('transcript') or (meeting.transcript if meeting else "")
 
     docs = MeetingDocument.objects.filter(meeting=meeting) if meeting else []
@@ -541,7 +780,8 @@ def get_meeting_analysis(request, meeting_id):
             topic=topic,
             module=module,
             industry=industry,
-            document_context=doc_context
+            document_context=doc_context,
+            erp_system=erp_system
         )
     except Exception as e:
         return Response({
@@ -553,6 +793,7 @@ def get_meeting_analysis(request, meeting_id):
         meeting.post_meeting_analysis = analysis
         meeting.analysis_status = 'Analyzed'
         meeting.save(update_fields=['post_meeting_analysis', 'analysis_status'])
+        sync_project_cumulative_intelligence(meeting, analysis)
 
     return Response(analysis, status=status.HTTP_200_OK)
 
@@ -638,27 +879,6 @@ def get_all_questions(request):
                     'industry': m.industry,
                 }
                 questions_list.append(q_obj)
-
-    # If no questions exist yet, generate dynamic seed questions based on active meetings
-    if not questions_list:
-        from .ai_service import _fallback_pre_meeting_prep
-        for mod in ['MM', 'FI', 'SD', 'PP']:
-            sample_prep = _fallback_pre_meeting_prep('Core Workshop', 'Manufacturing', mod, 'Enterprise Project', f'{mod} Workshop', True)
-            for rq in sample_prep.get('recommendedQuestions', []):
-                questions_list.append({
-                    'id': rq.get('id'),
-                    'text': rq.get('question'),
-                    'module': mod,
-                    'topic': rq.get('topic'),
-                    'phase': 'Exploration',
-                    'importance': rq.get('priority', 'High'),
-                    'status': 'Open',
-                    'confidence': rq.get('confidence', 92),
-                    'reasons': rq.get('reasons', []),
-                    'meetingId': '',
-                    'meetingName': f'{mod} Exploration Session',
-                    'industry': 'Manufacturing'
-                })
 
     # Apply filters
     filtered = []
@@ -786,40 +1006,6 @@ def get_knowledge_items(request):
                     'lastUpdated': meeting_date
                 })
 
-    if not knowledge_items:
-        knowledge_items = [
-            {
-                'id': 'k-base-1',
-                'title': 'Multi-Plant Material Valuation Standard',
-                'content': 'Standardized valuation classes mapped across central manufacturing and regional warehouse locations.',
-                'category': 'Architecture & Scope',
-                'module': 'MM',
-                'industry': 'Manufacturing',
-                'meetingName': 'Initial Scope Alignment',
-                'meetingId': '',
-                'source': 'Enterprise Blueprint',
-                'verifiedBy': 'Lead Architect',
-                'status': 'Verified',
-                'confidence': 95,
-                'lastUpdated': '2026-09-10'
-            },
-            {
-                'id': 'k-base-2',
-                'title': 'Foreign Currency Revaluation Methodology',
-                'content': 'Open AR/AP line items revalued at month-end based on central treasury exchange rate tables.',
-                'category': 'Decisions',
-                'module': 'FI',
-                'industry': 'General',
-                'meetingName': 'Finance Kickoff',
-                'meetingId': '',
-                'source': 'Treasury Governance',
-                'verifiedBy': 'Finance Lead',
-                'status': 'Agreed',
-                'confidence': 94,
-                'lastUpdated': '2026-09-12'
-            }
-        ]
-
     # Filter
     filtered = []
     for k in knowledge_items:
@@ -852,13 +1038,16 @@ def get_dashboard_summary(request):
 
     # Calculate total questions
     total_questions = 0
+    readiness_scores = []
     for m in meetings:
         if m.pre_meeting_preparation and isinstance(m.pre_meeting_preparation, dict):
             total_questions += len(m.pre_meeting_preparation.get('recommendedQuestions', []))
         if m.post_meeting_analysis and isinstance(m.post_meeting_analysis, dict):
-            total_questions += len(m.post_meeting_analysis.get('questions', []))
-    if total_questions == 0:
-        total_questions = max(total_meetings * 6, 24)
+            total_questions += len(m.post_meeting_analysis.get('questionsAsked', []))
+        if m.preparation_score:
+            readiness_scores.append(m.preparation_score)
+
+    avg_readiness = round(sum(readiness_scores) / len(readiness_scores)) if readiness_scores else 0
 
     recent_meetings_data = []
     for m in meetings.order_by('-created_at')[:6]:
@@ -875,13 +1064,13 @@ def get_dashboard_summary(request):
         })
 
     return Response({
-        'totalProjects': max(projects_count, 1),
+        'totalProjects': projects_count,
         'totalMeetings': total_meetings,
         'completedMeetings': completed_meetings,
         'scheduledMeetings': scheduled_meetings,
         'analyzedMeetings': analyzed_count,
         'totalQuestions': total_questions,
-        'averageReadiness': 91,
+        'averageReadiness': avg_readiness,
         'recentMeetings': recent_meetings_data,
     }, status=status.HTTP_200_OK)
 

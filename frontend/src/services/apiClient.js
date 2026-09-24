@@ -6,13 +6,17 @@ export async function apiFetch(endpoint, options = {}) {
   const token = localStorage.getItem('auth_token');
   const authHeaders = token ? { 'Authorization': `Token ${token}` } : {};
 
+  // Don't set Content-Type header if body is FormData (browser will set multipart boundary automatically)
+  const isFormData = options.body instanceof FormData;
+  const headers = {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...authHeaders,
+    ...options.headers,
+  };
+
   const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders,
-      ...options.headers,
-    },
     ...options,
+    headers,
   });
 
   if (!response.ok) {
@@ -28,5 +32,13 @@ export async function apiFetch(endpoint, options = {}) {
   }
 
   if (response.status === 204) return null;
-  return response.json();
+
+  const text = await response.text();
+  if (!text || !text.trim()) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }

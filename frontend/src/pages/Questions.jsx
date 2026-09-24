@@ -49,12 +49,6 @@ export default function Questions() {
         <PageHeader
           title="Question Intelligence"
           description="Every question your teams have asked, need to ask, or are still tracking answers for across live sessions."
-          actions={
-            <div className="flex gap-2">
-              <Button as={Link} to="/questions/faq" variant="secondary">Frequently Asked</Button>
-              <Button as={Link} to="/questions/missed" variant="secondary">Frequently Missed</Button>
-            </div>
-          }
         />
       )}
 
@@ -73,10 +67,10 @@ export default function Questions() {
         <Table columns={['Question', 'Domain / Scope', 'Topic', 'Meeting Context', 'Priority', 'Status', 'Confidence']}>
           {filtered.map((q, idx) => (
             <tr key={q.id || idx} className="hover:bg-ink-50/60">
-              <td className="px-4 py-3 max-w-sm">
-                <Link to={`/questions/${q.id}`} className="font-medium text-brand-700 hover:underline">
+              <td className="px-4 py-3 max-w-md">
+                <span className="font-medium text-ink-900 leading-snug">
                   {q.text || q.question}
-                </Link>
+                </span>
               </td>
               <td className="px-4 py-3"><Badge tone="neutral">{q.module || 'General'}</Badge></td>
               <td className="px-4 py-3 text-ink-600">{q.topic || 'Core Scope'}</td>
@@ -91,7 +85,7 @@ export default function Questions() {
                   {q.status || 'Open'}
                 </Badge>
               </td>
-              <td className="px-4 py-3 data-num text-ink-600">{q.confidence || 92}%</td>
+              <td className="px-4 py-3 data-num text-ink-600">{q.confidence ? `${q.confidence}%` : '—'}</td>
             </tr>
           ))}
         </Table>

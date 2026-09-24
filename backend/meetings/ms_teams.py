@@ -2,6 +2,7 @@ import os
 import msal
 import requests
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -14,6 +15,9 @@ TENANT_ID = os.getenv('MS_TENANT_ID', '').strip()
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 # Application permissions use Microsoft Graph default scope
 SCOPES = ["https://graph.microsoft.com/.default"]
+
+LOCAL_TZ = ZoneInfo("Asia/Kolkata")
+TIMEZONE_PREFERENCE = os.getenv('MS_TIMEZONE', 'India Standard Time')
 
 def get_msal_app():
     if not CLIENT_ID or not CLIENT_SECRET or not TENANT_ID:
@@ -40,36 +44,65 @@ def parse_graph_event(e):
     join_url = online_meeting.get('joinUrl') or e.get('onlineMeetingUrl') or ''
     subject = e.get('subject') or 'SAP Meeting Session'
     
-    # Parse start and end timestamps
+    # Parse start and end timestamps in local timezone
     start_obj = e.get('start') or {}
     end_obj = e.get('end') or {}
     start_str = start_obj.get('dateTime', '')
     end_str = end_obj.get('dateTime', '')
-    now = datetime.now(timezone.utc)
+    start_tz_name = (start_obj.get('timeZone') or 'UTC').lower()
+    end_tz_name = (end_obj.get('timeZone') or 'UTC').lower()
     
-    # Dynamic Status Calculation
+    now_local = datetime.now(LOCAL_TZ)
+    date_display = ''
+    time_display = ''
+    start_dt = None
+    end_dt = None
+
+    if start_str:
+        try:
+            clean_start = start_str.split('.')[0].replace('Z', '')
+            if start_tz_name in ['utc', 'coordinated universal time']:
+                raw_dt = datetime.fromisoformat(clean_start).replace(tzinfo=timezone.utc)
+                start_dt = raw_dt.astimezone(LOCAL_TZ)
+            else:
+                naive_dt = datetime.fromisoformat(clean_start)
+                start_dt = naive_dt.replace(tzinfo=LOCAL_TZ)
+            
+            date_display = start_dt.strftime('%Y-%m-%d')
+            time_display = start_dt.strftime('%H:%M') # e.g. "10:30"
+        except Exception:
+            date_display = start_str[:10]
+            time_display = start_str[11:16]
+
+    if end_str:
+        try:
+            clean_end = end_str.split('.')[0].replace('Z', '')
+            if end_tz_name in ['utc', 'coordinated universal time']:
+                raw_end = datetime.fromisoformat(clean_end).replace(tzinfo=timezone.utc)
+                end_dt = raw_end.astimezone(LOCAL_TZ)
+            else:
+                naive_end = datetime.fromisoformat(clean_end)
+                end_dt = naive_end.replace(tzinfo=LOCAL_TZ)
+        except Exception:
+            pass
+
+    # Dynamic Status Calculation based on local time
     is_cancelled = e.get('isCancelled', False) or subject.lower().startswith('canceled:') or subject.lower().startswith('cancelled:')
     
     if is_cancelled:
         status = 'Cancelled'
-    elif end_str:
-        try:
-            end_dt = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
-            start_dt = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
-            
-            if end_dt.tzinfo is None:
-                end_dt = end_dt.replace(tzinfo=timezone.utc)
-            if start_dt.tzinfo is None:
-                start_dt = start_dt.replace(tzinfo=timezone.utc)
-
-            if now > end_dt:
-                status = 'Completed'
-            elif start_dt <= now <= end_dt:
-                status = 'In Progress'
-            else:
-                status = 'Scheduled'
-        except Exception:
-            status = 'Completed' if start_str[:10] < now.strftime('%Y-%m-%d') else 'Scheduled'
+    elif start_dt and end_dt:
+        if now_local > end_dt:
+            status = 'Completed'
+        elif start_dt <= now_local <= end_dt:
+            status = 'In Progress'
+        else:
+            status = 'Scheduled'
+    elif start_dt:
+        if now_local > start_dt:
+            status = 'Completed'
+        else:
+            status = 'Scheduled'
     else:
         status = 'Scheduled'
 
@@ -121,8 +154,8 @@ def parse_graph_event(e):
         'id': e.get('id', ''),
         'name': subject,
         'title': subject,
-        'date': start_str[:10] if start_str else '',
-        'time': start_str[11:16] if len(start_str) >= 16 else '',
+        'date': date_display or (start_str[:10] if start_str else ''),
+        'time': time_display or (start_str[11:16] if len(start_str) >= 16 else ''),
         'start_time': start_str,
         'end_time': end_str,
         'joinUrl': join_url,
@@ -148,7 +181,10 @@ def fetch_teams_meetings(user_email=None):
         print("[MS Teams Sync]: No access token available or credentials not configured.")
         return []
 
-    headers = {'Authorization': f'Bearer {token}'}
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Prefer': f'outlook.timezone="{TIMEZONE_PREFERENCE}"'
+    }
     email = user_email or os.getenv('MS_USER_EMAIL')
     
     url = f"https://graph.microsoft.com/v1.0/users/{email}/calendar/events?$select=id,subject,start,end,attendees,isOnlineMeeting,onlineMeeting,isCancelled,organizer&$orderby=start/dateTime desc&$top=50"
@@ -173,7 +209,10 @@ def fetch_single_teams_meeting(event_id, user_email=None):
     if not token or not event_id:
         return None
 
-    headers = {'Authorization': f'Bearer {token}'}
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Prefer': f'outlook.timezone="{TIMEZONE_PREFERENCE}"'
+    }
     email = user_email or os.getenv('MS_USER_EMAIL')
     url = f"https://graph.microsoft.com/v1.0/users/{email}/calendar/events/{event_id}"
 

@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import { meetingService } from '../services/meetingService';
 import { apiFetch } from '../services/apiClient';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../hooks/useToast';
 import { getDynamicMeetingTag } from '../utils/domainUtils';
 
 const FILTERS = ['All', 'Upcoming', 'Completed'];
@@ -18,6 +19,7 @@ const FILTERS = ['All', 'Upcoming', 'Completed'];
 export default function Meetings() {
   const { id: projectId } = useParams();
   const { user } = useAuth();
+  const toast = useToast();
   const [meetings, setMeetings] = useState(null);
   const [filter, setFilter] = useState('All');
   const [query, setQuery] = useState('');
@@ -25,25 +27,38 @@ export default function Meetings() {
 
   // 1. AUTO-LOAD ON PAGE OPEN / REFRESH:
   useEffect(() => {
-    fetchLiveTeamsMeetings();
+    fetchLiveTeamsMeetings(false);
   }, [user?.email]);
 
   // 2. FETCH REAL-TIME TEAMS MEETINGS FOR LOGGED-IN USER:
-  const fetchLiveTeamsMeetings = async () => {
+  const fetchLiveTeamsMeetings = async (isManual = false) => {
     setLoadingTeams(true);
+    const start = Date.now();
     try {
       const emailParam = user?.email ? `?email=${encodeURIComponent(user.email)}` : '';
       const res = await apiFetch(`/meetings/live-teams/${emailParam}`);
+      if (isManual) {
+        const elapsed = Date.now() - start;
+        if (elapsed < 600) {
+          await new Promise((r) => setTimeout(r, 600 - elapsed));
+        }
+      }
       if (res?.connected && Array.isArray(res.meetings) && res.meetings.length > 0) {
         setMeetings(res.meetings);
       } else {
         const listData = await meetingService.list(user?.email ? { user_email: user.email } : {});
         setMeetings(listData);
       }
+      if (isManual) {
+        toast?.('Microsoft Teams calendar synchronized successfully!', 'success');
+      }
     } catch (err) {
       console.error('Failed to fetch live Teams meetings', err);
       const listData = await meetingService.list(user?.email ? { user_email: user.email } : {});
       setMeetings(listData);
+      if (isManual) {
+        toast?.('Synced with local workspace meetings', 'info');
+      }
     } finally {
       setLoadingTeams(false);
     }
@@ -60,20 +75,20 @@ export default function Meetings() {
   }, [meetings, filter, query]);
 
   return (
-    <div className="space-y-5">
+    <div className={`space-y-5 transition-opacity duration-300 ${loadingTeams ? 'opacity-80' : 'opacity-100'}`}>
       <div className="flex items-center justify-between">
         <PageHeader title="Meetings" description="Every workshop, client interview, and review session in your workspace." />
         
         {/* Microsoft Teams Auto-Sync Status & Refresh Button */}
         <div className="flex items-center gap-3">
           <button
-            onClick={fetchLiveTeamsMeetings}
+            onClick={() => fetchLiveTeamsMeetings(true)}
             disabled={loadingTeams}
-            className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all shadow-sm cursor-pointer"
+            className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 border border-emerald-200 hover:bg-emerald-100 active:scale-95 transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             title="Click to refresh meetings from Microsoft Teams"
           >
-            <RefreshCw className={`h-4 w-4 ${loadingTeams ? 'animate-spin' : ''}`} />
-            {loadingTeams ? 'Syncing...' : 'Synced with Microsoft Teams'}
+            <RefreshCw className={`h-4 w-4 transition-transform duration-200 ${loadingTeams ? 'animate-spin' : ''}`} />
+            {loadingTeams ? 'Syncing Teams...' : 'Synced with Microsoft Teams'}
           </button>
         </div>
       </div>

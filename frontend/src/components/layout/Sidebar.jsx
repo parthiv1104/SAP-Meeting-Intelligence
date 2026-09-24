@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, CalendarClock, CircleHelp, BrainCog,
+  LayoutDashboard, FolderKanban, CalendarClock, CircleHelp, BrainCog,
   FileText, BarChart3, Settings, ChevronsLeft, ChevronsRight, LogOut, Building2,
 } from 'lucide-react';
 import Avatar from '../ui/Avatar';
@@ -9,11 +9,13 @@ import { organization } from '../../config/constants';
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/projects', label: 'Projects', icon: FolderKanban },
   { to: '/meetings', label: 'Meetings', icon: CalendarClock },
   { to: '/questions', label: 'Questions', icon: CircleHelp },
   { to: '/knowledge', label: 'Knowledge', icon: BrainCog },
   { to: '/documents', label: 'Documents', icon: FileText },
 ];
+
 
 export default function Sidebar({ collapsed, onToggle }) {
   const { user, logout } = useAuth();

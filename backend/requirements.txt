@@ -10,3 +10,5 @@ pydub==0.25.1
 pypdf==6.18.1
 python-docx==1.2.0
 openpyxl==3.1.5
+psycopg2-binary>=2.9.10
+

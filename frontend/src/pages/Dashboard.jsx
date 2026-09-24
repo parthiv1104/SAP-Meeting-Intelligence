@@ -7,7 +7,7 @@ import {
 import {
   CalendarClock, CircleHelp, CheckCircle2, BrainCog,
   AlertTriangle, Sparkles, Plus, Upload, RefreshCw, ArrowUpRight,
-  TrendingUp, Building2, FileText, ChevronRight, ShieldAlert, BarChart3,
+  Building2, FileText, ChevronRight, ShieldAlert,
   Layers, Clock, Activity, ExternalLink, BookOpen
 } from 'lucide-react';
 import Card from '../components/ui/Card';
@@ -30,7 +30,6 @@ export default function Dashboard() {
   const [meetings, setMeetings] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [knowledgeItems, setKnowledgeItems] = useState([]);
-  const [activeTab, setActiveTab] = useState('overview'); // overview | analytics
   const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
@@ -39,17 +38,27 @@ export default function Dashboard() {
     loadAllData();
   }, []);
 
-  const loadAllData = async () => {
+  const loadAllData = async (isManual = false) => {
     setRefreshing(true);
+    const start = Date.now();
     try {
       const [meetData, docData, knowData] = await Promise.all([
         meetingService.list(),
         documentService.list().catch(() => []),
         knowledgeService.list().catch(() => [])
       ]);
+      if (isManual) {
+        const elapsed = Date.now() - start;
+        if (elapsed < 600) {
+          await new Promise((r) => setTimeout(r, 600 - elapsed));
+        }
+      }
       setMeetings(meetData || []);
       setDocuments(docData || []);
       setKnowledgeItems(knowData || []);
+      if (isManual) {
+        toast?.('Live dashboard intelligence & metrics updated!', 'success');
+      }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       toast?.('Failed to refresh dashboard data', 'critical');
@@ -76,7 +85,7 @@ export default function Dashboard() {
   }, [meetings]);
 
   const totalQuestions = useMemo(() => {
-    if (!meetings) return 24;
+    if (!meetings || meetings.length === 0) return 0;
     let count = 0;
     meetings.forEach((m) => {
       if (m.pre_meeting_preparation?.recommendedQuestions) {
@@ -86,67 +95,120 @@ export default function Dashboard() {
         count += m.post_meeting_analysis.questionsAsked.length;
       }
     });
-    return Math.max(count, meetings.length * 6, 18);
+    return count;
   }, [meetings]);
 
   const totalDecisions = useMemo(() => {
-    return knowledgeItems.filter((k) => k.category?.toLowerCase().includes('decision')).length || 4;
+    return knowledgeItems.filter((k) => k.category?.toLowerCase().includes('decision')).length || 0;
   }, [knowledgeItems]);
 
   const totalMissedGaps = useMemo(() => {
-    if (!meetings) return 3;
+    if (!meetings || meetings.length === 0) return 0;
     let count = 0;
     meetings.forEach((m) => {
       if (m.post_meeting_analysis?.missedQuestions) {
         count += m.post_meeting_analysis.missedQuestions.length;
       }
     });
-    return Math.max(count, 3);
+    return count;
   }, [meetings]);
 
   const avgReadiness = useMemo(() => {
-    if (!meetings || meetings.length === 0) return 92;
-    const scores = meetings.map((m) => m.preparationScore || m.preparation_score || 90);
+    if (!meetings || meetings.length === 0) return 0;
+    const scores = meetings
+      .map((m) => m.preparationScore || m.preparation_score)
+      .filter((s) => typeof s === 'number' && s > 0);
+    if (scores.length === 0) return 0;
     return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
   }, [meetings]);
 
-  // Analytics Trends
+  // Analytics Trends - Dynamic based on actual meetings
   const meetingVolumeTrend = useMemo(() => {
-    const total = meetings?.length || 6;
-    return [
-      { month: 'Apr', meetings: Math.max(1, Math.round(total * 0.2)), audited: 1 },
-      { month: 'May', meetings: Math.max(2, Math.round(total * 0.4)), audited: 2 },
-      { month: 'Jun', meetings: Math.max(3, Math.round(total * 0.6)), audited: 3 },
-      { month: 'Jul', meetings: Math.max(4, Math.round(total * 0.75)), audited: 4 },
-      { month: 'Aug', meetings: Math.max(5, Math.round(total * 0.9)), audited: Math.max(3, total - 2) },
-      { month: 'Sep', meetings: total, audited: Math.max(analyzedCount, 1) },
-    ];
-  }, [meetings, analyzedCount]);
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const last6 = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      last6.push({
+        year: d.getFullYear(),
+        monthIdx: d.getMonth(),
+        month: monthNames[d.getMonth()],
+        meetings: 0,
+        audited: 0,
+      });
+    }
+    if (meetings && meetings.length > 0) {
+      meetings.forEach((m) => {
+        const mDate = m.date ? new Date(m.date) : (m.created_at ? new Date(m.created_at) : null);
+        if (mDate && !isNaN(mDate.getTime())) {
+          const entry = last6.find(item => item.year === mDate.getFullYear() && item.monthIdx === mDate.getMonth());
+          if (entry) {
+            entry.meetings += 1;
+            if (m.analysisStatus === 'Analyzed' || m.analysis_status === 'Analyzed' || m.status === 'Completed') {
+              entry.audited += 1;
+            }
+          }
+        }
+      });
+    }
+    return last6.map(({ month, meetings, audited }) => ({ month, meetings, audited }));
+  }, [meetings]);
 
   const questionTrend = useMemo(() => {
-    return [
-      { month: 'Apr', asked: 14, missed: 4 },
-      { month: 'May', asked: 22, missed: 5 },
-      { month: 'Jun', asked: 30, missed: 6 },
-      { month: 'Jul', asked: 38, missed: 4 },
-      { month: 'Aug', asked: 46, missed: 3 },
-      { month: 'Sep', asked: Math.max(totalQuestions, 28), missed: totalMissedGaps },
-    ];
-  }, [totalQuestions, totalMissedGaps]);
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const last6 = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      last6.push({
+        year: d.getFullYear(),
+        monthIdx: d.getMonth(),
+        month: monthNames[d.getMonth()],
+        asked: 0,
+        missed: 0,
+      });
+    }
+    if (meetings && meetings.length > 0) {
+      meetings.forEach((m) => {
+        const mDate = m.date ? new Date(m.date) : (m.created_at ? new Date(m.created_at) : null);
+        if (mDate && !isNaN(mDate.getTime())) {
+          const entry = last6.find(item => item.year === mDate.getFullYear() && item.monthIdx === mDate.getMonth());
+          if (entry) {
+            const asked = m.post_meeting_analysis?.questionsAsked?.length || 0;
+            const missed = m.post_meeting_analysis?.missedQuestions?.length || 0;
+            entry.asked += asked;
+            entry.missed += missed;
+          }
+        }
+      });
+    }
+    return last6.map(({ month, asked, missed }) => ({ month, asked, missed }));
+  }, [meetings]);
 
-  const knowledgeGrowthTrend = [
-    { month: 'Apr', coverage: 58, decisions: 2 },
-    { month: 'May', coverage: 68, decisions: 5 },
-    { month: 'Jun', coverage: 76, decisions: 8 },
-    { month: 'Jul', coverage: 84, decisions: 12 },
-    { month: 'Aug', coverage: 90, decisions: 16 },
-    { month: 'Sep', coverage: Math.max(avgReadiness, 93), decisions: Math.max(totalDecisions, 19) },
-  ];
+  const knowledgeGrowthTrend = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const last6 = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      last6.push({
+        year: d.getFullYear(),
+        monthIdx: d.getMonth(),
+        month: monthNames[d.getMonth()],
+        coverage: 0,
+        decisions: 0,
+      });
+    }
+    if (knowledgeItems && knowledgeItems.length > 0) {
+      const totalDec = knowledgeItems.filter((k) => k.category?.toLowerCase().includes('decision')).length;
+      last6[5].coverage = avgReadiness;
+      last6[5].decisions = totalDec;
+    }
+    return last6.map(({ month, coverage, decisions }) => ({ month, coverage, decisions }));
+  }, [knowledgeItems, avgReadiness]);
 
   const industryBreakdown = useMemo(() => {
-    if (!meetings || meetings.length === 0) {
-      return [{ name: 'Manufacturing', value: 3 }, { name: 'Technology & AI', value: 2 }, { name: 'General', value: 1 }];
-    }
+    if (!meetings || meetings.length === 0) return [];
     const counts = {};
     meetings.forEach((m) => {
       const ind = m.industry || 'General';
@@ -155,30 +217,50 @@ export default function Dashboard() {
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [meetings]);
 
-  const frequentlyMissedTopics = [
-    { topic: 'Invoice Tolerances & Auto-Clearing', module: 'MM/FI', missed: 3, total: 10 },
-    { topic: 'Intercompany Billing Conditions', module: 'SD', missed: 2, total: 8 },
-    { topic: 'Batch Management & Expiration Rules', module: 'QM', missed: 2, total: 7 },
-    { topic: 'Throughput SLAs & Token Rate Limits', module: 'AI & Data', missed: 1, total: 5 },
-  ];
+  const frequentlyMissedTopics = useMemo(() => {
+    if (!meetings || meetings.length === 0) return [];
+    const topicsMap = {};
+    meetings.forEach((m) => {
+      const missedList = m.post_meeting_analysis?.missedQuestions || [];
+      const moduleName = m.module || 'General';
+      missedList.forEach((q) => {
+        const text = typeof q === 'string' ? q : (q.question || q.text || q.topic || 'Unclassified topic');
+        if (!topicsMap[text]) {
+          topicsMap[text] = { topic: text, module: moduleName, missed: 0, total: 0 };
+        }
+        topicsMap[text].missed += 1;
+      });
+      const askedList = m.post_meeting_analysis?.questionsAsked || [];
+      askedList.forEach((q) => {
+        const text = typeof q === 'string' ? q : (q.question || q.text || q.topic || 'Unclassified topic');
+        if (topicsMap[text]) {
+          topicsMap[text].total += 1;
+        }
+      });
+    });
+    return Object.values(topicsMap)
+      .map((t) => ({ ...t, total: Math.max(t.total, t.missed) }))
+      .slice(0, 4);
+  }, [meetings]);
 
   const dynamicInsights = useMemo(() => {
+    const meetCount = meetings?.length || 0;
     return [
       {
-        text: `${meetings?.length || 13} total sessions indexed in workspace memory across all modules.`,
+        text: `${meetCount} total session${meetCount === 1 ? '' : 's'} indexed in workspace memory across all modules.`,
         type: 'info'
       },
       {
         text: `${analyzedCount} completed meeting${analyzedCount === 1 ? '' : 's'} analyzed with Whisper & GPT-4o with all missed gaps indexed.`,
-        type: 'success'
+        type: analyzedCount > 0 ? 'success' : 'info'
       },
       {
         text: `${documents.length} project scope document${documents.length === 1 ? '' : 's'} attached, augmenting AI discovery questions.`,
         type: 'info'
       },
       {
-        text: `${knowledgeItems.length} institutional knowledge points & agreed decisions active in project memory.`,
-        type: 'success'
+        text: `${knowledgeItems.length} institutional knowledge point${knowledgeItems.length === 1 ? '' : 's'} & agreed decision${knowledgeItems.length === 1 ? '' : 's'} active in project memory.`,
+        type: knowledgeItems.length > 0 ? 'success' : 'info'
       },
     ];
   }, [meetings, analyzedCount, documents, knowledgeItems]);
@@ -213,8 +295,8 @@ export default function Dashboard() {
           <Button
             variant="secondary"
             icon={RefreshCw}
-            disabled={refreshing}
-            onClick={loadAllData}
+            loading={refreshing}
+            onClick={() => loadAllData(true)}
             title="Reload live metrics from backend"
           >
             {refreshing ? 'Refreshing...' : 'Refresh Live'}
@@ -253,66 +335,39 @@ export default function Dashboard() {
               delta={`${analyzedCount} analyzed`}
             />
             <MetricCard
-              label="Audited Sessions"
+              label="AI Analyzed Meetings"
               value={analyzedCount}
               icon={CheckCircle2}
               delta={`${completed.length} completed`}
             />
             <MetricCard
-              label="Question Library"
+              label="Generated Questions"
               value={totalQuestions}
               icon={CircleHelp}
               delta="Across domains"
             />
             <MetricCard
-              label="Scope Documents"
+              label="Attached Documents"
               value={documents.length}
               icon={FileText}
               delta="Extracted context"
             />
             <MetricCard
-              label="Missed Gaps / Risks"
+              label="Identified Risks & Gaps"
               value={totalMissedGaps}
               icon={AlertTriangle}
-              deltaTone="critical"
-              delta="Audited by AI"
+              deltaTone={totalMissedGaps > 0 ? "critical" : "neutral"}
+              delta={totalMissedGaps > 0 ? "Audited by AI" : "No gaps found"}
             />
             <MetricCard
-              label="Readiness Index"
-              value={`${avgReadiness}%`}
+              label="Meeting Readiness Score"
+              value={avgReadiness > 0 ? `${avgReadiness}%` : '0%'}
               icon={BrainCog}
-              delta="+12% this cycle"
+              delta={avgReadiness > 0 ? "+12% this cycle" : "No sessions analyzed"}
             />
           </div>
 
-          {/* View Mode Tabs */}
-          <div className="flex items-center gap-1.5 border-b border-ink-100 pb-2">
-            {[
-              { id: 'overview', label: 'Overview & Intelligence', icon: BarChart3 },
-              { id: 'analytics', label: 'Analytics & Trend Reports', icon: TrendingUp },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`focus-ring inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
-                    isActive
-                      ? 'bg-brand-600 text-white shadow-xs'
-                      : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900'
-                  }`}
-                >
-                  <Icon size={14} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* TAB 1: OVERVIEW & INTELLIGENCE */}
-          {activeTab === 'overview' && (
-            <div className="space-y-6">
+          <div className="space-y-6">
               {/* Analytics Row 1: Session Volume & Question Quality */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <Card className="border border-ink-100 shadow-xs">
@@ -394,24 +449,31 @@ export default function Dashboard() {
                     </div>
                     <Building2 size={15} className="text-ink-400" />
                   </div>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <PieChart>
-                      <Pie
-                        data={industryBreakdown}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={48}
-                        outerRadius={75}
-                        paddingAngle={3}
-                      >
-                        {industryBreakdown.map((_, i) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: '#dde1e7' }} />
-                      <Legend wrapperStyle={{ fontSize: 10 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {industryBreakdown.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <PieChart>
+                        <Pie
+                          data={industryBreakdown}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={48}
+                          outerRadius={75}
+                          paddingAngle={3}
+                        >
+                          {industryBreakdown.map((_, i) => (
+                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: '#dde1e7' }} />
+                        <Legend wrapperStyle={{ fontSize: 10 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[180px] flex flex-col items-center justify-center text-center text-xs text-ink-400">
+                      <Building2 size={24} className="text-ink-300 mb-1" />
+                      <p>No industry domain data yet</p>
+                    </div>
+                  )}
                 </Card>
 
                 <InsightCard insights={dynamicInsights} />
@@ -424,31 +486,38 @@ export default function Dashboard() {
                     <h3 className="text-sm font-bold text-ink-900">Frequently Missed Architectural &amp; Scope Topics</h3>
                     <p className="text-[11px] text-ink-500">Common blind spots detected across historical meetings</p>
                   </div>
-                  <Button as={Link} to="/questions/frequently-missed" variant="secondary" size="sm">
-                    View FAQ Gaps &rarr;
+                  <Button as={Link} to="/questions" variant="secondary" size="sm">
+                    View Questions &rarr;
                   </Button>
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 pt-1">
-                  {frequentlyMissedTopics.map((topic, i) => {
-                    const pct = Math.round((topic.missed / topic.total) * 100);
-                    return (
-                      <div key={i} className="rounded-xl border border-ink-100 bg-ink-50/50 p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-bold text-brand-700">
-                            {topic.module}
-                          </span>
-                          <span className="text-[11px] font-semibold text-red-600">
-                            {pct}% Missed Rate
-                          </span>
+                {frequentlyMissedTopics.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 pt-1">
+                    {frequentlyMissedTopics.map((topic, i) => {
+                      const pct = Math.round((topic.missed / topic.total) * 100);
+                      return (
+                        <div key={i} className="rounded-xl border border-ink-100 bg-ink-50/50 p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-bold text-brand-700">
+                              {topic.module}
+                            </span>
+                            <span className="text-[11px] font-semibold text-red-600">
+                              {pct}% Missed Rate
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-ink-900 leading-snug truncate" title={topic.topic}>
+                            {topic.topic}
+                          </p>
+                          <ProgressBar value={pct} max={100} color={pct > 25 ? 'bg-red-500' : 'bg-amber-500'} />
                         </div>
-                        <p className="text-xs font-bold text-ink-900 leading-snug truncate" title={topic.topic}>
-                          {topic.topic}
-                        </p>
-                        <ProgressBar value={pct} max={100} color={pct > 25 ? 'bg-red-500' : 'bg-amber-500'} />
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-xs text-ink-400 bg-ink-50/50 rounded-xl border border-dashed border-ink-200">
+                    <p className="font-medium text-ink-600">No frequently missed topics detected yet</p>
+                    <p className="mt-0.5 text-[11px] text-ink-400">Recurring scope gaps and missed questions will populate dynamically once post-meeting transcripts are analyzed.</p>
+                  </div>
+                )}
               </Card>
 
               {/* Upcoming & Active Meeting Sessions + Activity Grid */}
@@ -463,15 +532,28 @@ export default function Dashboard() {
                       View all ({meetings.length}) &rarr;
                     </Link>
                   </div>
-                  <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-                    {upcoming.map((m) => (
-                      <MeetingCard
-                        key={m.id}
-                        meeting={m}
-                        projectName={m.topic || m.module || m.name}
-                      />
-                    ))}
-                  </div>
+                  {upcoming.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                      {upcoming.map((m) => (
+                        <MeetingCard
+                          key={m.id}
+                          meeting={m}
+                          projectName={m.topic || m.module || m.name}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-white rounded-xl border border-dashed border-ink-200 space-y-2">
+                      <CalendarClock size={28} className="mx-auto text-ink-300" />
+                      <p className="text-sm font-semibold text-ink-800">No upcoming meetings scheduled</p>
+                      <p className="text-xs text-ink-500 max-w-sm mx-auto">Create a meeting session to prepare AI questions, capture transcripts, and extract architecture decisions.</p>
+                      <div className="pt-2">
+                        <Button as={Link} to="/meetings/new" variant="primary" size="sm" icon={Plus}>
+                          Schedule Meeting
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -494,71 +576,31 @@ export default function Dashboard() {
                     View Knowledge Base &rarr;
                   </Link>
                 </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {knowledgeItems.slice(0, 3).map((item) => (
-                    <Card key={item.id} className="border border-ink-100 hover:border-brand-300 transition-colors">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <Badge tone="brand">{item.category || 'Architecture'}</Badge>
-                        <span className="text-[11px] font-semibold text-ink-400">{item.module || 'General'}</span>
-                      </div>
-                      <h4 className="text-sm font-bold text-ink-900 line-clamp-1">{item.title}</h4>
-                      <p className="mt-1 text-xs text-ink-600 line-clamp-2 leading-relaxed">{item.content}</p>
-                      <div className="mt-3 flex items-center justify-between pt-2 border-t border-ink-50 text-[11px] text-ink-400">
-                        <span>Source: {item.meetingName || 'Meeting Audit'}</span>
-                        <Badge tone="positive">{item.confidence || 95}% Confidence</Badge>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
+                {knowledgeItems.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {knowledgeItems.slice(0, 3).map((item) => (
+                      <Card key={item.id} className="border border-ink-100 hover:border-brand-300 transition-colors">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <Badge tone="brand">{item.category || 'Architecture'}</Badge>
+                          <span className="text-[11px] font-semibold text-ink-400">{item.module || 'General'}</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-ink-900 line-clamp-1">{item.title}</h4>
+                        <p className="mt-1 text-xs text-ink-600 line-clamp-2 leading-relaxed">{item.content}</p>
+                        <div className="mt-3 flex items-center justify-between pt-2 border-t border-ink-50 text-[11px] text-ink-400">
+                          <span>Source: {item.meetingName || 'Meeting Audit'}</span>
+                          <Badge tone="positive">{item.confidence || 95}% Confidence</Badge>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-xs text-ink-400 bg-ink-50/50 rounded-xl border border-dashed border-ink-200">
+                    <p className="font-medium text-ink-600">No verified knowledge items or decisions recorded</p>
+                    <p className="mt-0.5 text-[11px] text-ink-400">Institutional decisions and architectural agreements will be automatically extracted during meeting analysis.</p>
+                  </div>
+                )}
               </div>
             </div>
-          )}
-
-          {/* TAB 2: ANALYTICS & TREND REPORTS */}
-          {activeTab === 'analytics' && (
-            <div className="space-y-6">
-              {/* Analytics Row 1 */}
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <Card className="border border-ink-100 shadow-xs">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-ink-900">Meeting Session Volume &amp; Audits</h3>
-                      <p className="text-[11px] text-ink-500">Scheduled vs Whisper/GPT-4o analyzed sessions</p>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={240}>
-                    <BarChart data={meetingVolumeTrend}>
-                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#71798c' }} axisLine={false} tickLine={false} />
-                      <YAxis hide />
-                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: '#dde1e7' }} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar dataKey="meetings" name="Total Meetings" fill="#5b4bdb" radius={[4, 4, 0, 0]} barSize={22} />
-                      <Bar dataKey="audited" name="AI Analyzed" fill="#1f9d5c" radius={[4, 4, 0, 0]} barSize={22} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Card>
-
-                <Card className="border border-ink-100 shadow-xs">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-ink-900">Questions Answered vs. Missed Gaps</h3>
-                      <p className="text-[11px] text-ink-500">Omission audit rate across workshop transcripts</p>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={240}>
-                    <LineChart data={questionTrend}>
-                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#71798c' }} axisLine={false} tickLine={false} />
-                      <YAxis hide />
-                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: '#dde1e7' }} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Line type="monotone" dataKey="asked" name="Answered in Call" stroke="#1f9d5c" strokeWidth={2.5} dot={{ r: 3 }} />
-                      <Line type="monotone" dataKey="missed" name="Missed Gaps" stroke="#d33f34" strokeWidth={2.5} dot={{ r: 3 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </Card>
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>

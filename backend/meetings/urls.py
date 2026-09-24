@@ -14,6 +14,7 @@ from .views import (
     delete_meeting_document,
     get_all_documents,
     single_meeting_detail,
+    replace_skipped_question_view,
     get_platform_health_status
 )
 
@@ -29,6 +30,8 @@ urlpatterns = [
     path('knowledge-library/', get_knowledge_items, name='get_knowledge_items'),
     path('dashboard-summary/', get_dashboard_summary, name='get_dashboard_summary'),
     path('<path:meeting_id>/sync-teams-transcript/', sync_teams_transcript, name='sync_teams_transcript'),
+    path('<path:meeting_id>/skip-question/', replace_skipped_question_view, name='replace_skipped_question'),
+    path('<path:meeting_id>/replace-question/', replace_skipped_question_view, name='replace_skipped_question_alias'),
     path('<path:meeting_id>/prep/', meeting_preparation_detail, name='meeting_preparation_detail'),
     path('<path:meeting_id>/preparation/', meeting_preparation_detail, name='meeting_preparation_detail_alias'),
     path('<path:meeting_id>/documents/', meeting_documents_view, name='meeting_documents'),

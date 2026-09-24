@@ -58,6 +58,7 @@ export default function MeetingDetail() {
           topic: m.topic || m.name || 'Meeting Scope',
           module: m.module || 'Cross-Module',
           industry: m.industry || 'General',
+          erp_system: m.erp_system || m.erpSystem || 'SAP S/4HANA (Private / On-Premise)',
         });
       }
     });
@@ -138,6 +139,7 @@ export default function MeetingDetail() {
         topic: meeting?.topic || meeting?.name,
         module: meeting?.module || 'Cross-Module',
         industry: meeting?.industry || 'General',
+        erp_system: meeting?.erp_system || meeting?.erpSystem || 'SAP S/4HANA (Private / On-Premise)',
       });
 
       toast?.('Meeting recording processed and analyzed successfully!', 'success');
@@ -203,7 +205,7 @@ export default function MeetingDetail() {
               <span>{domainInfo.eyebrow}</span>
             </div>
             <h1 className="mt-1 text-xl font-bold text-ink-900">{meeting.name || meeting.title}</h1>
-            
+
             <div className="mt-2.5 flex flex-wrap items-center gap-2.5 text-xs text-ink-600">
               <span className="flex items-center gap-1 rounded bg-ink-50 px-2 py-1 font-medium">
                 <Clock size={12} /> {meeting.date || 'Scheduled'} {meeting.time ? `· ${meeting.time}` : ''}
@@ -214,15 +216,19 @@ export default function MeetingDetail() {
               {domainInfo.badges.map((b, i) => (
                 <span
                   key={i}
-                  className={`font-semibold px-2 py-1 rounded text-xs ${
-                    b.tone === 'brand'
+                  className={`font-semibold px-2 py-1 rounded text-xs ${b.tone === 'brand'
                       ? 'text-brand-700 bg-brand-50 border border-brand-200'
                       : 'text-ink-700 bg-ink-100'
-                  }`}
+                    }`}
                 >
                   {b.label}
                 </span>
               ))}
+              {(meeting.erp_system || meeting.erpSystem) && (
+                <span className="font-semibold px-2 py-1 rounded text-xs text-indigo-800 bg-indigo-50 border border-indigo-200">
+                  {meeting.erp_system || meeting.erpSystem}
+                </span>
+              )}
               <Badge tone={meeting.status === 'Completed' ? 'positive' : meeting.status === 'In Progress' ? 'critical' : 'neutral'}>
                 {meeting.status}
               </Badge>
@@ -346,16 +352,15 @@ export default function MeetingDetail() {
                   className="flex flex-col justify-between rounded-xl border border-ink-100 bg-white p-3.5 shadow-xs transition hover:border-brand-300 hover:shadow-sm"
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                      isPdf ? 'bg-red-50 text-red-600 border border-red-100' :
-                      isWord ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                      isExcel ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                      'bg-slate-50 text-slate-600 border border-slate-200'
-                    }`}>
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${isPdf ? 'bg-red-50 text-red-600 border border-red-100' :
+                        isWord ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                          isExcel ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                            'bg-slate-50 text-slate-600 border border-slate-200'
+                      }`}>
                       {isPdf ? <FileText size={20} /> :
-                       isWord ? <FileCode size={20} /> :
-                       isExcel ? <FileSpreadsheet size={20} /> :
-                       <FileText size={20} />}
+                        isWord ? <FileCode size={20} /> :
+                          isExcel ? <FileSpreadsheet size={20} /> :
+                            <FileText size={20} />}
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -498,6 +503,32 @@ export default function MeetingDetail() {
                 <option value="General">General / Other</option>
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-ink-700 mb-1">
+              ERP System &amp; Cloud Architecture
+            </label>
+            <select
+              className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none"
+              value={editForm.erp_system}
+              onChange={(e) => setEditForm({ ...editForm, erp_system: e.target.value })}
+            >
+              <optgroup label="SAP Systems & Architecture">
+                <option value="SAP S/4HANA (Private Cloud / On-Premise)">SAP S/4HANA (Private Cloud / On-Premise)</option>
+                <option value="SAP S/4HANA Public Cloud (Clean Core / SaaS)">SAP S/4HANA Public Cloud (Clean Core / SaaS)</option>
+                <option value="SAP ECC 6.0 (Legacy Suite)">SAP ECC 6.0 (Legacy Suite)</option>
+                <option value="SAP BTP & Extension Suite">SAP BTP &amp; Extension Suite</option>
+              </optgroup>
+              <optgroup label="Non-SAP Platforms">
+                <option value="AI & Data Science Platform">AI &amp; Data Science Platform</option>
+                <option value="Cloud Native Architecture">Cloud Native Architecture</option>
+                <option value="General Enterprise Architecture">General Enterprise Architecture</option>
+              </optgroup>
+            </select>
+            <p className="mt-1 text-[11px] text-ink-400">
+              The AI Engine tailors questions specifically for this architecture (e.g., Clean Core &amp; RAP for Public Cloud, ACDOCA &amp; BP for S/4HANA, Classic tables for ECC).
+            </p>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-ink-100">

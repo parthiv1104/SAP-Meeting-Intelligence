@@ -27,5 +27,10 @@ export function ToastProvider({ children }) {
 }
 
 export function useToast() {
-  return useContext(ToastContext);
+  const ctx = useContext(ToastContext);
+  const toastFn = ctx || ((msg, type) => console.log(`[Toast ${type}]: ${msg}`));
+  toastFn.addToast = toastFn;
+  toastFn.toast = toastFn;
+  toastFn.push = toastFn;
+  return toastFn;
 }
