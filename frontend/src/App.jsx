@@ -5,6 +5,7 @@ import ProtectedRoute from './components/layout/ProtectedRoute';
 import AppShell from './components/layout/AppShell';
 
 import Auth from './pages/Auth';
+import AuthCallback from './pages/AuthCallback';
 import Dashboard from './pages/Dashboard';
 
 import Projects from './pages/Projects';
@@ -31,6 +32,8 @@ export default function App() {
           {/* Public Auth Routes */}
           <Route path="/login" element={<Auth initialMode="login" />} />
           <Route path="/register" element={<Auth initialMode="register" />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+
 
           {/* Protected Application Workspace */}
           <Route

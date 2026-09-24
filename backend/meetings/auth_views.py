@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from rest_framework import status
@@ -6,6 +7,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from .models import UserProfile
+from .ms_teams import get_user_auth_url, acquire_tokens_from_code
+
 
 
 def get_authenticated_user(request):
@@ -101,6 +104,7 @@ def get_user_profile_data(user: User):
         'role': role,
         'organization': profile.organization,
         'createdBy': profile.created_by.email if profile.created_by else None,
+        'msAccountConnected': profile.ms_account_connected,
         'permissions': {
             'canCreateUsers': can_create_users,
             'allowedRolesToCreate': allowed_roles,
@@ -111,6 +115,7 @@ def get_user_profile_data(user: User):
             'canDeleteUsers': can_delete_users,
         }
     }
+
 
 
 @api_view(['POST'])
@@ -392,4 +397,52 @@ def manage_single_user_view(request, user_id):
             'user': get_user_profile_data(target_user),
             'message': 'User role updated.'
         }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def ms_oauth_url_view(request):
+    """
+    Returns Microsoft OAuth2 login URL prompting Microsoft Authenticator approval on phone.
+    """
+    redirect_uri = request.query_params.get('redirect_uri', 'http://localhost:5173/auth/callback')
+    auth_url = get_user_auth_url(redirect_uri)
+    if not auth_url:
+        return Response({'error': 'Microsoft OAuth configuration missing in backend.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return Response({'auth_url': auth_url}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def ms_oauth_callback_view(request):
+    """
+    Exchanges Microsoft OAuth authorization code for delegated access token & saves to user profile.
+    """
+    user = get_authenticated_user(request)
+    if not user:
+        return Response({'error': 'Unauthorized user session.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    code = request.data.get('code', '')
+    redirect_uri = request.data.get('redirect_uri', 'http://localhost:5173/auth/callback')
+
+    if not code:
+        return Response({'error': 'Authorization code is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    tokens = acquire_tokens_from_code(code, redirect_uri)
+    if not tokens or not tokens.get('access_token'):
+        return Response({'error': 'Failed to authenticate with Microsoft 365.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    profile.ms_access_token = tokens['access_token']
+    profile.ms_refresh_token = tokens.get('refresh_token', '')
+    profile.ms_token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=tokens.get('expires_in', 3600))
+    profile.ms_account_connected = True
+    profile.save()
+
+    return Response({
+        'status': 'success',
+        'message': 'Microsoft 365 account connected with Authenticator verification!',
+        'user': get_user_profile_data(user)
+    }, status=status.HTTP_200_OK)
+
 

@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { CalendarClock, Video, RefreshCw, ExternalLink } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { CalendarClock, Video, RefreshCw, ExternalLink, ShieldCheck, Lock } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import SearchInput from '../components/ui/SearchInput';
 import Table from '../components/ui/Table';
 import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
 import { SkeletonGrid } from '../components/ui/Skeleton';
-import { Link } from 'react-router-dom';
 import { meetingService } from '../services/meetingService';
 import { apiFetch } from '../services/apiClient';
 import { useAuth } from '../context/AuthContext';
@@ -24,13 +23,33 @@ export default function Meetings() {
   const [filter, setFilter] = useState('All');
   const [query, setQuery] = useState('');
   const [loadingTeams, setLoadingTeams] = useState(false);
+  const [connectingMS, setConnectingMS] = useState(false);
 
   // 1. AUTO-LOAD ON PAGE OPEN / REFRESH:
   useEffect(() => {
     fetchLiveTeamsMeetings(false);
   }, [user?.email]);
 
-  // 2. FETCH REAL-TIME TEAMS MEETINGS FOR LOGGED-IN USER:
+  // 2. TRIGGER MICROSOFT 365 OAUTH & AUTHENTICATOR APP LOGIN:
+  const handleConnectMicrosoft = async () => {
+    setConnectingMS(true);
+    try {
+      const redirectUri = `${window.location.origin}/auth/callback`;
+      const res = await apiFetch(`/auth/microsoft/url/?redirect_uri=${encodeURIComponent(redirectUri)}`);
+      if (res?.auth_url) {
+        window.location.href = res.auth_url;
+      } else {
+        toast?.('Could not generate Microsoft OAuth login URL.', 'critical');
+      }
+    } catch (err) {
+      console.error('Failed to initiate Microsoft OAuth:', err);
+      toast?.('Failed to connect to Microsoft 365. Please try again.', 'critical');
+    } finally {
+      setConnectingMS(false);
+    }
+  };
+
+  // 3. FETCH REAL-TIME TEAMS MEETINGS FOR LOGGED-IN USER:
   const fetchLiveTeamsMeetings = async (isManual = false) => {
     setLoadingTeams(true);
     const start = Date.now();
@@ -79,8 +98,28 @@ export default function Meetings() {
       <div className="flex items-center justify-between">
         <PageHeader title="Meetings" description="Every workshop, client interview, and review session in your workspace." />
         
-        {/* Microsoft Teams Auto-Sync Status & Refresh Button */}
+        {/* Microsoft Teams Sync & Authenticator Status Action Bar */}
         <div className="flex items-center gap-3">
+          {user?.msAccountConnected ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 border border-emerald-200"
+              title="Microsoft Authenticator 2FA Session Verified"
+            >
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              Authenticator MFA Active
+            </span>
+          ) : (
+            <button
+              onClick={handleConnectMicrosoft}
+              disabled={connectingMS}
+              className="flex items-center gap-2 rounded-lg bg-[#464EB8] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#3b42a0] active:scale-95 transition-all shadow-xs cursor-pointer disabled:opacity-60"
+              title="Connect Microsoft 365 with Authenticator App Approval"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              {connectingMS ? 'Connecting MS 365...' : 'Connect MS 365 (Authenticator MFA)'}
+            </button>
+          )}
+
           <button
             onClick={() => fetchLiveTeamsMeetings(true)}
             disabled={loadingTeams}
@@ -88,10 +127,11 @@ export default function Meetings() {
             title="Click to refresh meetings from Microsoft Teams"
           >
             <RefreshCw className={`h-4 w-4 transition-transform duration-200 ${loadingTeams ? 'animate-spin' : ''}`} />
-            {loadingTeams ? 'Syncing Teams...' : 'Synced with Microsoft Teams'}
+            {loadingTeams ? 'Syncing Teams...' : 'Sync Microsoft Teams'}
           </button>
         </div>
       </div>
+
 
       <div className="flex flex-wrap items-center gap-2.5">
         <SearchInput value={query} onChange={setQuery} placeholder="Search meetings..." className="w-full max-w-xs" />

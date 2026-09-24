@@ -266,11 +266,14 @@ def single_meeting_detail(request, meeting_id):
         meeting.delete()
         return Response({'status': 'deleted'}, status=status.HTTP_204_NO_CONTENT)
 
+from .ms_teams import get_live_teams_meetings, fetch_teams_meetings, fetch_single_teams_meeting, fetch_teams_meeting_transcript, fetch_user_delegated_teams_meetings
+
 @api_view(['GET', 'POST'])
 def live_teams_meetings(request):
     """
     Pathway 1: Live Microsoft Teams Calendar Sync
-    Fetches real-time meetings from Microsoft Graph API for the logged-in user and persists them locally.
+    Fetches real-time meetings from Microsoft Graph API for the logged-in user.
+    Uses Microsoft Authenticator verified delegated tokens if user has connected their MS 365 account.
     """
     user_email = request.GET.get('email') or (request.data.get('email') if hasattr(request, 'data') and isinstance(request.data, dict) else None)
     if not user_email and request.user and request.user.is_authenticated:
@@ -278,9 +281,25 @@ def live_teams_meetings(request):
     if not user_email:
         user_email = os.getenv('MS_USER_EMAIL')
 
+    meetings_data = []
+    auth_method = "application"
+
+    # Check if user has connected their own Microsoft 365 account with Authenticator MFA
+    if request.user and request.user.is_authenticated and hasattr(request.user, 'profile'):
+        profile = request.user.profile
+        if profile.ms_account_connected and profile.ms_access_token:
+            meetings_data = fetch_user_delegated_teams_meetings(profile.ms_access_token)
+            if meetings_data:
+                auth_method = "user_delegated_mfa"
+
+    # Fallback to application credentials if user-delegated token is not yet connected or returned 0
+    if not meetings_data:
+        try:
+            meetings_data = fetch_teams_meetings(user_email=user_email)
+        except Exception as e:
+            print("[MS Teams Sync Warning]:", e)
+
     try:
-        meetings_data = fetch_teams_meetings(user_email=user_email)
-        
         # Upsert meetings into database to ensure detail views have real subjects, dates, and links
         for m in meetings_data:
             Meeting.objects.update_or_create(
@@ -303,10 +322,12 @@ def live_teams_meetings(request):
 
         return Response({
             'connected': True,
+            'auth_method': auth_method,
             'user_email': user_email,
             'meetings': meetings_data,
             'count': len(meetings_data)
         }, status=status.HTTP_200_OK)
+
     except Exception as e:
         print("[Live Teams Error]:", e)
         return Response({

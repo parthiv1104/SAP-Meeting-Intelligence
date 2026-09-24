@@ -5,7 +5,9 @@ from .auth_views import (
     me_view,
     logout_view,
     list_or_create_users_view,
-    manage_single_user_view
+    manage_single_user_view,
+    ms_oauth_url_view,
+    ms_oauth_callback_view
 )
 
 urlpatterns = [
@@ -14,5 +16,8 @@ urlpatterns = [
     path('me/', me_view, name='auth-me'),
     path('users/', list_or_create_users_view, name='auth-users'),
     path('users/<int:user_id>/', manage_single_user_view, name='auth-user-detail'),
+    path('microsoft/url/', ms_oauth_url_view, name='ms-oauth-url'),
+    path('microsoft/callback/', ms_oauth_callback_view, name='ms-oauth-callback'),
     path('logout/', logout_view, name='auth-logout'),
 ]
+

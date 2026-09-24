@@ -15,6 +15,12 @@ TENANT_ID = os.getenv('MS_TENANT_ID', '').strip()
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 # Application permissions use Microsoft Graph default scope
 SCOPES = ["https://graph.microsoft.com/.default"]
+USER_SCOPES = [
+    "https://graph.microsoft.com/User.Read",
+    "https://graph.microsoft.com/Calendars.Read",
+    "https://graph.microsoft.com/OnlineMeetings.Read",
+    "offline_access"
+]
 
 LOCAL_TZ = ZoneInfo("Asia/Kolkata")
 TIMEZONE_PREFERENCE = os.getenv('MS_TIMEZONE', 'India Standard Time')
@@ -38,6 +44,84 @@ def get_app_access_token():
         return result["access_token"]
     print("[MSAL Error]:", result.get("error_description", result))
     return None
+
+def get_user_auth_url(redirect_uri):
+    """
+    Generates the Microsoft OAuth 2.0 Login URL triggering Microsoft Authenticator approval.
+    """
+    app = get_msal_app()
+    if not app:
+        return None
+    return app.get_authorization_request_url(
+        scopes=USER_SCOPES,
+        redirect_uri=redirect_uri,
+        prompt="select_account"
+    )
+
+def acquire_tokens_from_code(code, redirect_uri):
+    """
+    Exchanges Microsoft OAuth authorization code for delegated access & refresh tokens.
+    """
+    app = get_msal_app()
+    if not app or not code:
+        return None
+    result = app.acquire_token_by_authorization_code(
+        code=code,
+        scopes=USER_SCOPES,
+        redirect_uri=redirect_uri
+    )
+    if "access_token" in result:
+        access_token = result["access_token"]
+        refresh_token = result.get("refresh_token", "")
+        expires_in = result.get("expires_in", 3600)
+        
+        # Fetch authenticated user profile from Graph /me
+        user_info = {}
+        try:
+            me_res = requests.get(
+                "https://graph.microsoft.com/v1.0/me",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=8
+            )
+            if me_res.status_code == 200:
+                user_info = me_res.json()
+        except Exception:
+            pass
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_in": expires_in,
+            "email": user_info.get("mail") or user_info.get("userPrincipalName") or "",
+            "name": user_info.get("displayName") or "",
+        }
+    print("[MSAL Token Exchange Error]:", result.get("error_description", result))
+    return None
+
+def fetch_user_delegated_teams_meetings(access_token):
+    """
+    Fetches real Teams calendar events using the user's delegated access token.
+    Enforces user isolation & Microsoft Authenticator verified sessions.
+    """
+    if not access_token:
+        return []
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Prefer': f'outlook.timezone="{TIMEZONE_PREFERENCE}"'
+    }
+    url = "https://graph.microsoft.com/v1.0/me/calendar/events?$select=id,subject,start,end,attendees,isOnlineMeeting,onlineMeeting,isCancelled,organizer&$orderby=start/dateTime desc&$top=50"
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        if res.status_code == 200:
+            events = res.json().get('value', [])
+            return [parse_graph_event(e) for e in events]
+        else:
+            print("[Delegated Graph Error]:", res.status_code, res.text)
+            return []
+    except Exception as exc:
+        print("[Delegated Graph Exception]:", exc)
+        return []
+
 
 def parse_graph_event(e):
     online_meeting = e.get('onlineMeeting') or {}

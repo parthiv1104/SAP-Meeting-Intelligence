@@ -16,9 +16,16 @@ class UserProfile(models.Model):
     organization = models.CharField(max_length=200, default='VC ERP Consulting Group')
     phone = models.CharField(max_length=50, blank=True, default='')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_users')
+    
+    # Microsoft 365 OAuth & Authenticator Integration Tokens
+    ms_access_token = models.TextField(blank=True, default='')
+    ms_refresh_token = models.TextField(blank=True, default='')
+    ms_token_expires_at = models.DateTimeField(null=True, blank=True)
+    ms_account_connected = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.user.username} Profile ({self.role})"
+
 
 
 
