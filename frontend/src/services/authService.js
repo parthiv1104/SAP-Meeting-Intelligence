@@ -34,6 +34,8 @@ export const authService = {
     } finally {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
+      sessionStorage.removeItem('ms_access_token');
     }
+
   },
 };

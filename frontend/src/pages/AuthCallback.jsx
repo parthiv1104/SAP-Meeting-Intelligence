@@ -36,12 +36,16 @@ export default function AuthCallback() {
         });
 
         if (res?.status === 'success') {
+          if (res.ms_access_token) {
+            sessionStorage.setItem('ms_access_token', res.ms_access_token);
+          }
           if (res.user) {
             await updateProfile(res.user);
           }
           toast?.('Microsoft 365 Account successfully connected & verified with Authenticator!', 'success');
           navigate('/meetings');
         } else {
+
           setErrorMsg(res?.error || 'Failed to exchange Microsoft authorization token.');
         }
       } catch (err) {

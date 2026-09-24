@@ -284,13 +284,13 @@ def live_teams_meetings(request):
     meetings_data = []
     auth_method = "application"
 
-    # Check if user has connected their own Microsoft 365 account with Authenticator MFA
-    if request.user and request.user.is_authenticated and hasattr(request.user, 'profile'):
-        profile = request.user.profile
-        if profile.ms_account_connected and profile.ms_access_token:
-            meetings_data = fetch_user_delegated_teams_meetings(profile.ms_access_token)
-            if meetings_data:
-                auth_method = "user_delegated_mfa"
+    # Check for temporary browser session Microsoft 365 token
+    ms_token = request.headers.get('X-MS-Access-Token') or request.GET.get('ms_token') or (request.data.get('ms_token') if hasattr(request, 'data') and isinstance(request.data, dict) else None)
+    if ms_token:
+        meetings_data = fetch_user_delegated_teams_meetings(ms_token)
+        if meetings_data:
+            auth_method = "user_delegated_mfa"
+
 
     # Fallback to application credentials if user-delegated token is not yet connected or returned 0
     if not meetings_data:

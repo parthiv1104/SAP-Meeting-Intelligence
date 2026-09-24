@@ -1,10 +1,14 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://10.1.2.128:8000/api';
 
 export async function apiFetch(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
-  
+
   const token = localStorage.getItem('auth_token');
-  const authHeaders = token ? { 'Authorization': `Token ${token}` } : {};
+  const msAccessToken = sessionStorage.getItem('ms_access_token');
+  const authHeaders = {
+    ...(token ? { 'Authorization': `Token ${token}` } : {}),
+    ...(msAccessToken ? { 'X-MS-Access-Token': msAccessToken } : {}),
+  };
 
   // Don't set Content-Type header if body is FormData (browser will set multipart boundary automatically)
   const isFormData = options.body instanceof FormData;
@@ -13,6 +17,7 @@ export async function apiFetch(endpoint, options = {}) {
     ...authHeaders,
     ...options.headers,
   };
+
 
   const response = await fetch(url, {
     ...options,

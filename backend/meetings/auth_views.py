@@ -104,7 +104,6 @@ def get_user_profile_data(user: User):
         'role': role,
         'organization': profile.organization,
         'createdBy': profile.created_by.email if profile.created_by else None,
-        'msAccountConnected': profile.ms_account_connected,
         'permissions': {
             'canCreateUsers': can_create_users,
             'allowedRolesToCreate': allowed_roles,
@@ -115,6 +114,7 @@ def get_user_profile_data(user: User):
             'canDeleteUsers': can_delete_users,
         }
     }
+
 
 
 
@@ -432,17 +432,12 @@ def ms_oauth_callback_view(request):
     if not tokens or not tokens.get('access_token'):
         return Response({'error': 'Failed to authenticate with Microsoft 365.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    profile, _ = UserProfile.objects.get_or_create(user=user)
-    profile.ms_access_token = tokens['access_token']
-    profile.ms_refresh_token = tokens.get('refresh_token', '')
-    profile.ms_token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=tokens.get('expires_in', 3600))
-    profile.ms_account_connected = True
-    profile.save()
-
     return Response({
         'status': 'success',
         'message': 'Microsoft 365 account connected with Authenticator verification!',
+        'ms_access_token': tokens['access_token'],
         'user': get_user_profile_data(user)
     }, status=status.HTTP_200_OK)
+
 
 

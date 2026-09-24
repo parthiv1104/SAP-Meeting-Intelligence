@@ -25,10 +25,14 @@ export default function Meetings() {
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [connectingMS, setConnectingMS] = useState(false);
 
+  const [isMsConnected, setIsMsConnected] = useState(!!sessionStorage.getItem('ms_access_token'));
+
   // 1. AUTO-LOAD ON PAGE OPEN / REFRESH:
   useEffect(() => {
+    setIsMsConnected(!!sessionStorage.getItem('ms_access_token'));
     fetchLiveTeamsMeetings(false);
   }, [user?.email]);
+
 
   // 2. TRIGGER MICROSOFT 365 OAUTH & AUTHENTICATOR APP LOGIN:
   const handleConnectMicrosoft = async () => {
@@ -100,7 +104,8 @@ export default function Meetings() {
         
         {/* Microsoft Teams Sync & Authenticator Status Action Bar */}
         <div className="flex items-center gap-3">
-          {user?.msAccountConnected ? (
+          {isMsConnected ? (
+
             <span
               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 border border-emerald-200"
               title="Microsoft Authenticator 2FA Session Verified"

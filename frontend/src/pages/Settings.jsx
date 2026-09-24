@@ -21,13 +21,13 @@ export default function Settings() {
 
   const permissions = user?.permissions || {
     canCreateUsers: user?.role === 'Admin' || user?.role === 'Team Leader' || user?.role === 'Project Manager',
-    allowedRolesToCreate: user?.role === 'Admin' 
+    allowedRolesToCreate: user?.role === 'Admin'
       ? ['Admin', 'Team Leader', 'Project Manager', 'Consultant']
       : user?.role === 'Team Leader'
-      ? ['Project Manager', 'Consultant']
-      : user?.role === 'Project Manager'
-      ? ['Consultant']
-      : [],
+        ? ['Project Manager', 'Consultant']
+        : user?.role === 'Project Manager'
+          ? ['Consultant']
+          : [],
     canDeleteUsers: user?.role === 'Admin' || user?.role === 'Team Leader',
   };
 
@@ -200,7 +200,7 @@ export default function Settings() {
             status: 'Offline / Unreachable',
             healthy: false,
             latency_ms: 0,
-            details: 'Could not reach http://localhost:8000/api/meetings/health-check/',
+            details: 'Could not reach http://10.1.2.128:8000/api/meetings/health-check/',
             troubleshooting: 'Ensure backend server is running via `python manage.py runserver`.'
           }
         ],
@@ -273,11 +273,10 @@ export default function Settings() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`focus-ring flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left text-sm font-semibold transition-all ${
-                  isActive
+                className={`focus-ring flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left text-sm font-semibold transition-all ${isActive
                     ? 'bg-brand-600 text-white shadow-sm shadow-brand-500/20'
                     : 'text-ink-600 hover:bg-ink-100/70 hover:text-ink-900'
-                }`}
+                  }`}
               >
                 <Icon size={17} className={isActive ? 'text-white' : 'text-ink-400'} />
                 <span>{tab.label}</span>
@@ -311,10 +310,10 @@ export default function Settings() {
                         {user?.role === 'Admin'
                           ? 'Full Workspace Authority — You can create Admins, Team Leaders, Project Managers, and Consultants.'
                           : user?.role === 'Team Leader'
-                          ? 'Team Leadership Authority — You can provision Project Managers and Consultants.'
-                          : user?.role === 'Project Manager'
-                          ? 'Project Management Authority — You can provision Consultants for assigned projects.'
-                          : 'Consultant Authority — View assigned project preparation and meeting intelligence.'}
+                            ? 'Team Leadership Authority — You can provision Project Managers and Consultants.'
+                            : user?.role === 'Project Manager'
+                              ? 'Project Management Authority — You can provision Consultants for assigned projects.'
+                              : 'Consultant Authority — View assigned project preparation and meeting intelligence.'}
                       </p>
                     </div>
                   </div>
@@ -617,22 +616,20 @@ export default function Settings() {
           {activeTab === 'health' && (
             <div className="space-y-5">
               {/* Main Overall Health Banner */}
-              <div className={`rounded-2xl border p-5 shadow-xs transition-all ${
-                healthData?.status_tone === 'healthy'
+              <div className={`rounded-2xl border p-5 shadow-xs transition-all ${healthData?.status_tone === 'healthy'
                   ? 'border-emerald-200 bg-emerald-50/50'
                   : healthData?.status_tone === 'warning'
-                  ? 'border-amber-200 bg-amber-50/50'
-                  : 'border-rose-200 bg-rose-50/50'
-              }`}>
+                    ? 'border-amber-200 bg-amber-50/50'
+                    : 'border-rose-200 bg-rose-50/50'
+                }`}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-start sm:items-center gap-3.5">
-                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
-                      healthData?.status_tone === 'healthy'
+                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${healthData?.status_tone === 'healthy'
                         ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
                         : healthData?.status_tone === 'warning'
-                        ? 'bg-amber-600 text-white'
-                        : 'bg-rose-600 text-white'
-                    }`}>
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-rose-600 text-white'
+                      }`}>
                       {healthData?.status_tone === 'healthy' ? (
                         <ShieldCheck size={26} />
                       ) : (
@@ -646,11 +643,10 @@ export default function Settings() {
                           {healthData?.overall_status || 'Checking Platform Status...'}
                         </h2>
                         {healthData && (
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                            healthData.status_tone === 'healthy'
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${healthData.status_tone === 'healthy'
                               ? 'bg-emerald-100 text-emerald-800'
                               : 'bg-amber-100 text-amber-800'
-                          }`}>
+                            }`}>
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             {healthData.health_score}% Healthy
                           </span>
@@ -707,17 +703,15 @@ export default function Settings() {
                     return (
                       <Card
                         key={c.id}
-                        className={`border p-4 transition-all ${
-                          c.healthy
+                        className={`border p-4 transition-all ${c.healthy
                             ? 'border-ink-100 hover:border-emerald-200 bg-white'
                             : 'border-rose-200 bg-rose-50/20'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3 min-w-0">
-                            <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-                              c.healthy ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                            }`}>
+                            <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${c.healthy ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                              }`}>
                               <Icon size={18} />
                             </div>
 
@@ -732,11 +726,10 @@ export default function Settings() {
                           </div>
 
                           <div className="shrink-0 flex flex-col items-end gap-1">
-                            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${
-                              c.healthy
+                            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${c.healthy
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}>
+                              }`}>
                               {c.healthy ? <Check size={10} /> : <AlertCircle size={10} />}
                               {c.status}
                             </span>
