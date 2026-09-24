@@ -66,12 +66,13 @@ export default function Meetings() {
           await new Promise((r) => setTimeout(r, 600 - elapsed));
         }
       }
-      if (res?.connected && Array.isArray(res.meetings) && res.meetings.length > 0) {
+      if (res?.connected && Array.isArray(res.meetings)) {
         setMeetings(res.meetings);
       } else {
         const listData = await meetingService.list(user?.email ? { user_email: user.email } : {});
-        setMeetings(listData);
+        setMeetings(listData || []);
       }
+
       if (isManual) {
         toast?.('Microsoft Teams calendar synchronized successfully!', 'success');
       }
