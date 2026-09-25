@@ -3,7 +3,7 @@
  */
 
 export const organization = {
-  name: 'VC ERP Consulting Group',
+  name: 'Enterprise Organization',
   plan: 'Enterprise',
 };
 

@@ -126,7 +126,7 @@ export default function MeetingPreparation() {
       <div className="print-only border-b-2 border-brand-600 pb-4 mb-5 space-y-2">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-brand-700">VC ERP Consulting Group • ProjectIQ Intelligence</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Enterprise Consulting • ProjectIQ Intelligence</p>
             <h1 className="text-xl font-extrabold text-ink-900 mt-1">EXECUTIVE PRE-MEETING PREPARATION BRIEF</h1>
           </div>
           <div className="text-right text-xs text-ink-500">

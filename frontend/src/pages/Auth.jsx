@@ -7,18 +7,16 @@ import {
 import { useAuth } from '../context/AuthContext';
 import LogoMark from '../components/ui/LogoMark';
 
-export default function Auth({ initialMode = 'login' }) {
-  const [isLogin, setIsLogin] = useState(initialMode !== 'register');
+export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   // Form states
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const { login, register } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/dashboard';
@@ -29,23 +27,13 @@ export default function Auth({ initialMode = 'login' }) {
     setLoading(true);
 
     try {
-      if (isLogin) {
-        await login({ email, password });
-      } else {
-        await register({ name, email, password });
-      }
+      await login({ email, password });
       navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || 'Authentication failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFillDemo = (demoEmail, demoPass) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setError('');
   };
 
   return (
@@ -125,7 +113,7 @@ export default function Auth({ initialMode = 'login' }) {
           </div>
 
           <div className="flex items-center gap-6 border-t border-slate-800/80 pt-6 text-xs text-slate-500">
-            <span className="flex items-center gap-1.5"><CheckCircle2 size={14} className="text-brand-400" /> VC ERP Consulting Standard</span>
+            <span className="flex items-center gap-1.5"><CheckCircle2 size={14} className="text-brand-400" /> Enterprise Consulting Standard</span>
             <span className="flex items-center gap-1.5"><CheckCircle2 size={14} className="text-brand-400" /> S/4HANA &amp; Cross-Module</span>
             <span className="flex items-center gap-1.5"><CheckCircle2 size={14} className="text-brand-400" /> Zero Mock Data</span>
           </div>
@@ -140,7 +128,7 @@ export default function Auth({ initialMode = 'login' }) {
               <div className="flex items-center">
                 <img
                   src="/logo.png"
-                  alt="VC ERP Consulting"
+                  alt="Meeting Intelligence Workspace"
                   className="h-10 w-auto max-w-[210px] object-contain brightness-110"
                 />
               </div>
@@ -150,41 +138,13 @@ export default function Auth({ initialMode = 'login' }) {
               </span>
             </div>
 
-            {/* Mode Switcher Tabs */}
-            <div className="mt-8 flex rounded-xl bg-slate-950/60 p-1 border border-slate-800/70">
-              <button
-                type="button"
-                onClick={() => { setIsLogin(true); setError(''); }}
-                className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
-                  isLogin
-                    ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => { setIsLogin(false); setError(''); }}
-                className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
-                  !isLogin
-                    ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Create Account
-              </button>
-            </div>
-
             {/* Title */}
-            <div className="mt-6">
+            <div className="mt-8">
               <h2 className="text-xl font-bold text-white">
-                {isLogin ? 'Welcome back to your workspace' : 'Create your consultant account'}
+                Sign in to your workspace
               </h2>
-              <p className="mt-1 text-xs text-slate-400">
-                {isLogin
-                  ? 'Enter your work credentials to access your meetings and projects.'
-                  : 'Register your email to sync your Microsoft 365 calendar and discovery briefs.'}
+              <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+                Enter your work credentials to access your meetings and projects. Account registration is managed by your Administrator.
               </p>
             </div>
 
@@ -198,27 +158,6 @@ export default function Auth({ initialMode = 'login' }) {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-              {!isLogin && (
-                <>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Full Name
-                    </label>
-                    <div className="relative">
-                      <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        required
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="e.g. Parthiv Dudhrejiya"
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950/70 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                   Work Email Address
@@ -230,7 +169,7 @@ export default function Auth({ initialMode = 'login' }) {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@vc-erp.com"
+                    placeholder="name@company.com"
                     className="w-full rounded-xl border border-slate-700 bg-slate-950/70 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                   />
                 </div>
@@ -241,11 +180,9 @@ export default function Auth({ initialMode = 'login' }) {
                   <label className="block text-xs font-semibold text-slate-300">
                     Password
                   </label>
-                  {isLogin && (
-                    <span className="text-[11px] text-brand-400 hover:text-brand-300 cursor-pointer">
-                      Forgot password?
-                    </span>
-                  )}
+                  <span className="text-[11px] text-brand-400 hover:text-brand-300 cursor-pointer">
+                    Forgot password?
+                  </span>
                 </div>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -275,32 +212,16 @@ export default function Auth({ initialMode = 'login' }) {
                 {loading ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    <span>{isLogin ? 'Signing In...' : 'Creating Account...'}</span>
+                    <span>Signing In...</span>
                   </>
                 ) : (
                   <>
-                    <span>{isLogin ? 'Sign In to Workspace' : 'Create Account & Sync Calendar'}</span>
+                    <span>Sign In to Workspace</span>
                     <ArrowRight size={16} />
                   </>
                 )}
               </button>
             </form>
-
-            {/* Quick Demo Credentials Footer Helper */}
-            {isLogin && (
-              <div className="mt-6 border-t border-slate-800/80 pt-4 text-center">
-                <p className="text-[11px] text-slate-400">
-                  Quick access for testing:{' '}
-                  <button
-                    type="button"
-                    onClick={() => handleFillDemo('parthiv.dudhrejiya@vc-erp.com', 'admin123')}
-                    className="font-medium text-brand-400 underline decoration-brand-400/40 hover:text-brand-300"
-                  >
-                    Auto-fill Parthiv (VC ERP)
-                  </button>
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </div>

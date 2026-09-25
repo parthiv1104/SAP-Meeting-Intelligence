@@ -11,7 +11,7 @@ from .models import UserProfile
 from .ms_teams import get_user_auth_url, acquire_tokens_from_code
 
 PRIMARY_ADMIN_EMAIL = os.getenv('PRIMARY_ADMIN_EMAIL', '').strip().lower()
-DEFAULT_ORGANIZATION = os.getenv('DEFAULT_ORGANIZATION', '').strip()
+DEFAULT_ORGANIZATION = os.getenv('DEFAULT_ORGANIZATION', 'Enterprise Organization').strip() or 'Enterprise Organization'
 
 
 
@@ -127,16 +127,12 @@ def get_user_profile_data(user: User):
 @permission_classes([AllowAny])
 def register_view(request):
     """
-    Registers a new user account and returns an auth token and user profile.
+    Public self-registration is disabled. User accounts are provisioned exclusively by organization Administrators.
     """
-    data = request.data
-    email = data.get('email', '').strip().lower()
-    username = data.get('username', '').strip() or email
-    password = data.get('password', '')
-    first_name = data.get('first_name', '').strip()
-    last_name = data.get('last_name', '').strip()
-    name = data.get('name', '').strip()
-    requested_role = data.get('role', 'Consultant').strip()
+    return Response(
+        {'error': 'Public self-registration is disabled. User accounts must be created by an organization Administrator.'},
+        status=status.HTTP_403_FORBIDDEN
+    )
 
     if not email:
         return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -173,7 +169,7 @@ def register_view(request):
         UserProfile.objects.create(
             user=user,
             role=assigned_role,
-            organization='VC ERP Consulting Group'
+            organization=DEFAULT_ORGANIZATION
         )
 
         token, _ = Token.objects.get_or_create(user=user)
@@ -349,7 +345,7 @@ def list_or_create_users_view(request):
             UserProfile.objects.create(
                 user=new_user,
                 role=target_role,
-                organization='VC ERP Consulting Group',
+                organization=DEFAULT_ORGANIZATION,
                 created_by=requester
             )
             return Response({

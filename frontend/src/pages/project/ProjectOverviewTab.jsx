@@ -43,11 +43,11 @@ export default function ProjectOverviewTab() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Card>
           <p className="text-xs font-medium uppercase text-ink-500">Client</p>
-          <p className="mt-1 text-sm font-semibold text-ink-900">{project.client || 'VC ERP Client'}</p>
+          <p className="mt-1 text-sm font-semibold text-ink-900">{project.client || 'Enterprise Client'}</p>
         </Card>
         <Card>
           <p className="text-xs font-medium uppercase text-ink-500">Project Manager</p>
-          <p className="mt-1 text-sm font-semibold text-ink-900">{project.projectManager || 'Parthiv Dudhrejiya'}</p>
+          <p className="mt-1 text-sm font-semibold text-ink-900">{project.projectManager || 'Project Lead'}</p>
         </Card>
         <Card>
           <p className="text-xs font-medium uppercase text-ink-500">Timeline</p>

@@ -237,7 +237,7 @@ export default function ProjectNew() {
                   className={inputClass}
                   value={form.name}
                   onChange={(e) => update('name', e.target.value)}
-                  placeholder="e.g. Torrent Pharma S/4HANA Greenfield"
+                  placeholder="e.g. Global S/4HANA Transformation"
                 />
               </div>
 
@@ -247,7 +247,7 @@ export default function ProjectNew() {
                   className={inputClass}
                   value={form.client}
                   onChange={(e) => update('client', e.target.value)}
-                  placeholder="e.g. Torrent Pharmaceuticals Ltd."
+                  placeholder="e.g. Enterprise Client Name"
                 />
               </div>
             </div>
@@ -381,7 +381,7 @@ export default function ProjectNew() {
                 className={inputClass}
                 value={form.projectManager}
                 onChange={(e) => update('projectManager', e.target.value)}
-                placeholder="e.g. Parthiv Dudhrejiya"
+                placeholder="e.g. Project Lead Name"
               />
             </div>
 
@@ -456,7 +456,7 @@ export default function ProjectNew() {
                   <label className="block text-[11px] font-semibold text-ink-600 mb-1">Consultant Name *</label>
                   <input
                     className={inputClass}
-                    placeholder="e.g. Chirag Modi"
+                    placeholder="e.g. Consultant Name"
                     value={newMemberName}
                     onChange={(e) => setNewMemberName(e.target.value)}
                   />
@@ -474,7 +474,7 @@ export default function ProjectNew() {
                   <label className="block text-[11px] font-semibold text-ink-600 mb-1">Email Address</label>
                   <input
                     className={inputClass}
-                    placeholder="e.g. chirag@vc-erp.com"
+                    placeholder="e.g. consultant@company.com"
                     value={newMemberEmail}
                     onChange={(e) => setNewMemberEmail(e.target.value)}
                   />

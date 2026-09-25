@@ -13,7 +13,7 @@ class UserProfile(models.Model):
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     role = models.CharField(max_length=100, choices=ROLE_CHOICES, default='Consultant')
-    organization = models.CharField(max_length=200, default='VC ERP Consulting Group')
+    organization = models.CharField(max_length=200, default='Enterprise Organization')
     phone = models.CharField(max_length=50, blank=True, default='')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_users')
     

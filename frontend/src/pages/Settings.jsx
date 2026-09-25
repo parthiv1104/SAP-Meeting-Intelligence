@@ -40,9 +40,9 @@ export default function Settings() {
 
   // 1. Profile State
   const [profileForm, setProfileForm] = useState({
-    name: user?.name || user?.username || 'Parthiv Dudhrejiya',
-    email: user?.email || 'parthiv.dudhrejiya@vc-erp.com',
-    organization: user?.organization || 'VC ERP Consulting Group',
+    name: user?.name || user?.username || 'Consultant Profile',
+    email: user?.email || '',
+    organization: user?.organization || 'Enterprise Organization',
   });
   const [savingProfile, setSavingProfile] = useState(false);
 
@@ -50,9 +50,9 @@ export default function Settings() {
   useEffect(() => {
     if (user) {
       setProfileForm({
-        name: user.name || (user.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user.username) || 'Parthiv Dudhrejiya',
-        email: user.email || 'parthiv.dudhrejiya@vc-erp.com',
-        organization: user.organization || 'VC ERP Consulting Group',
+        name: user.name || (user.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user.username) || 'Consultant Profile',
+        email: user.email || '',
+        organization: user.organization || 'Enterprise Organization',
       });
     }
   }, [user]);
@@ -481,7 +481,7 @@ export default function Settings() {
                           required
                           value={newUserForm.name}
                           onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
-                          placeholder="e.g. John Doe"
+                          placeholder="e.g. Full Name"
                           className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
                         />
                       </div>
@@ -493,7 +493,7 @@ export default function Settings() {
                           required
                           value={newUserForm.email}
                           onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
-                          placeholder="e.g. john.doe@vc-erp.com"
+                          placeholder="e.g. john.doe@company.com"
                           className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
                         />
                       </div>
@@ -575,7 +575,7 @@ export default function Settings() {
                     value={profileForm.name}
                     onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
                     className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                    placeholder="Parthiv Dudhrejiya"
+                    placeholder="Full Name"
                     required
                   />
                 </div>
@@ -587,7 +587,7 @@ export default function Settings() {
                     value={profileForm.email}
                     onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                     className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                    placeholder="parthiv.dudhrejiya@vc-erp.com"
+                    placeholder="user@company.com"
                     required
                   />
                   <p className="mt-1 text-[11px] text-ink-400">Used as default identity for live Microsoft 365 calendar synchronization.</p>
@@ -600,7 +600,7 @@ export default function Settings() {
                     value={profileForm.organization}
                     onChange={(e) => setProfileForm({ ...profileForm, organization: e.target.value })}
                     className="w-full rounded-lg border border-ink-200 px-3.5 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                    placeholder="VC ERP Consulting Group"
+                    placeholder="Enterprise Organization"
                     required
                   />
                 </div>

@@ -30,8 +30,8 @@ export default function App() {
       <ToastProvider>
         <Routes>
           {/* Public Auth Routes */}
-          <Route path="/login" element={<Auth initialMode="login" />} />
-          <Route path="/register" element={<Auth initialMode="register" />} />
+          <Route path="/login" element={<Auth />} />
+          <Route path="/register" element={<Navigate to="/login" replace />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
 
 

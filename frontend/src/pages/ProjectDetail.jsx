@@ -700,7 +700,7 @@ export default function ProjectDetail() {
               <input
                 required
                 className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                placeholder="e.g. Anand Verma"
+                placeholder="e.g. Consultant Name"
                 value={memberForm.name}
                 onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })}
               />
@@ -722,7 +722,7 @@ export default function ProjectDetail() {
               <input
                 type="email"
                 className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                placeholder="e.g. anand.verma@vc-erp.com"
+                placeholder="e.g. consultant@company.com"
                 value={memberForm.email}
                 onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })}
               />

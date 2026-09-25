@@ -38,7 +38,7 @@ export default function Sidebar({ collapsed, onToggle }) {
         <NavLink to="/dashboard" className="flex items-center w-full">
           <img
             src="/logo.png"
-            alt="VC ERP Consulting"
+            alt="Meeting Intelligence Workspace"
             className={collapsed ? "h-7 w-auto max-w-[44px] object-contain" : "w-full h-auto max-h-14 object-contain object-left"}
           />
         </NavLink>

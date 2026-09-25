@@ -271,7 +271,7 @@ export default function Dashboard() {
       id: `act-${m.id || idx}`,
       text: `${m.name || 'Meeting Session'} ${m.status === 'Completed' ? 'analyzed & gap audited' : 'scheduled'}`,
       time: m.date || 'Recent',
-      user: m.organizer || 'VC ERP Assistant',
+      user: m.organizer || 'AI Workspace Assistant',
       type: m.status === 'Completed' ? 'analysis' : 'meeting'
     }));
   }, [meetings]);
