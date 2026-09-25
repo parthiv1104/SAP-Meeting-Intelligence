@@ -286,18 +286,27 @@ def live_teams_meetings(request):
 
     # Check for temporary browser session Microsoft 365 token
     ms_token = request.headers.get('X-MS-Access-Token') or request.GET.get('ms_token') or (request.data.get('ms_token') if hasattr(request, 'data') and isinstance(request.data, dict) else None)
-    if ms_token:
-        meetings_data = fetch_user_delegated_teams_meetings(ms_token)
-        if meetings_data:
-            auth_method = "user_delegated_mfa"
+    
+    if not ms_token:
+        return Response({
+            'connected': False,
+            'auth_method': 'none',
+            'user_email': user_email,
+            'message': 'Microsoft 365 Authenticator MFA authentication required to view Teams meetings.',
+            'meetings': [],
+            'count': 0
+        }, status=status.HTTP_200_OK)
 
-
-    # Fallback to application credentials if user-delegated token is not yet connected or returned 0
-    if not meetings_data:
-        try:
-            meetings_data = fetch_teams_meetings(user_email=user_email)
-        except Exception as e:
-            print("[MS Teams Sync Warning]:", e)
+    meetings_data = fetch_user_delegated_teams_meetings(ms_token)
+    if meetings_data is None:
+        return Response({
+            'connected': False,
+            'auth_method': 'none',
+            'user_email': user_email,
+            'message': 'Microsoft 365 session expired or invalid. Please re-authenticate.',
+            'meetings': [],
+            'count': 0
+        }, status=status.HTTP_200_OK)
 
     try:
         # Upsert meetings into database to ensure detail views have real subjects, dates, and links
@@ -322,11 +331,12 @@ def live_teams_meetings(request):
 
         return Response({
             'connected': True,
-            'auth_method': auth_method,
+            'auth_method': 'user_delegated_mfa',
             'user_email': user_email,
             'meetings': meetings_data,
             'count': len(meetings_data)
         }, status=status.HTTP_200_OK)
+
 
     except Exception as e:
         print("[Live Teams Error]:", e)

@@ -156,11 +156,32 @@ export default function Meetings() {
         </div>
       </div>
 
-      {!meetings ? (
+      {!isMsConnected ? (
+        <div className="rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50/70 via-white to-brand-50/20 p-8 text-center space-y-4 shadow-xs">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#464EB8] text-white shadow-md shadow-[#464EB8]/30">
+            <Lock size={28} />
+          </div>
+          <div className="max-w-md mx-auto space-y-1.5">
+            <h3 className="text-base font-bold text-ink-900">Microsoft 365 Authenticator MFA Required</h3>
+            <p className="text-xs text-ink-600 leading-relaxed">
+              To view your live Microsoft Teams workshops and meetings, connect your Microsoft 365 account with Authenticator 2FA approval on your phone.
+            </p>
+          </div>
+          <button
+            onClick={handleConnectMicrosoft}
+            disabled={connectingMS}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#464EB8] px-5 py-2.5 text-xs font-semibold text-white hover:bg-[#3b42a0] active:scale-95 transition-all shadow-md cursor-pointer disabled:opacity-60"
+          >
+            <Lock size={15} />
+            {connectingMS ? 'Connecting MS 365...' : 'Connect MS 365 (Authenticator MFA)'}
+          </button>
+        </div>
+      ) : !meetings ? (
         <SkeletonGrid />
       ) : filtered.length === 0 ? (
         <EmptyState icon={CalendarClock} title="No meetings found" description="No upcoming meetings found on your calendar." />
       ) : (
+
         <Table
           columns={[
             { label: 'Meeting', className: 'w-[42%] min-w-[320px]' },
