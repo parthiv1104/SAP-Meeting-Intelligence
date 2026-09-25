@@ -47,7 +47,7 @@ def get_app_access_token():
 
 def get_user_auth_url(redirect_uri):
     """
-    Generates the Microsoft OAuth 2.0 Login URL triggering Microsoft Authenticator approval.
+    Generates the Microsoft OAuth 2.0 Login URL triggering fresh Microsoft Authenticator approval.
     """
     app = get_msal_app()
     if not app:
@@ -55,8 +55,9 @@ def get_user_auth_url(redirect_uri):
     return app.get_authorization_request_url(
         scopes=USER_SCOPES,
         redirect_uri=redirect_uri,
-        prompt="select_account"
+        prompt="login"
     )
+
 
 def acquire_tokens_from_code(code, redirect_uri):
     """
