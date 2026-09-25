@@ -10,8 +10,9 @@ from rest_framework.authtoken.models import Token
 from .models import UserProfile
 from .ms_teams import get_user_auth_url, acquire_tokens_from_code
 
-PRIMARY_ADMIN_EMAIL = os.getenv('PRIMARY_ADMIN_EMAIL', 'parthiv.dudhrejiya@vc-erp.com').strip().lower()
-DEFAULT_ORGANIZATION = os.getenv('DEFAULT_ORGANIZATION', 'VC ERP Consulting Group').strip()
+PRIMARY_ADMIN_EMAIL = os.getenv('PRIMARY_ADMIN_EMAIL', '').strip().lower()
+DEFAULT_ORGANIZATION = os.getenv('DEFAULT_ORGANIZATION', '').strip()
+
 
 
 def get_authenticated_user(request):
@@ -409,7 +410,8 @@ def ms_oauth_url_view(request):
     """
     Returns Microsoft OAuth2 login URL prompting Microsoft Authenticator approval on phone.
     """
-    redirect_uri = request.query_params.get('redirect_uri', 'http://localhost:5173/auth/callback')
+    default_redirect = os.getenv('MS_REDIRECT_URI', '')
+    redirect_uri = request.query_params.get('redirect_uri') or default_redirect
     auth_url = get_user_auth_url(redirect_uri)
     if not auth_url:
         return Response({'error': 'Microsoft OAuth configuration missing in backend.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -427,7 +429,9 @@ def ms_oauth_callback_view(request):
         return Response({'error': 'Unauthorized user session.'}, status=status.HTTP_401_UNAUTHORIZED)
 
     code = request.data.get('code', '')
-    redirect_uri = request.data.get('redirect_uri', 'http://localhost:5173/auth/callback')
+    default_redirect = os.getenv('MS_REDIRECT_URI', '')
+    redirect_uri = request.data.get('redirect_uri') or default_redirect
+
 
     if not code:
         return Response({'error': 'Authorization code is required.'}, status=status.HTTP_400_BAD_REQUEST)
