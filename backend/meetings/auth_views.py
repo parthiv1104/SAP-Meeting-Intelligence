@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta, timezone
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
@@ -9,6 +10,8 @@ from rest_framework.authtoken.models import Token
 from .models import UserProfile
 from .ms_teams import get_user_auth_url, acquire_tokens_from_code
 
+PRIMARY_ADMIN_EMAIL = os.getenv('PRIMARY_ADMIN_EMAIL', 'parthiv.dudhrejiya@vc-erp.com').strip().lower()
+DEFAULT_ORGANIZATION = os.getenv('DEFAULT_ORGANIZATION', 'VC ERP Consulting Group').strip()
 
 
 def get_authenticated_user(request):
@@ -32,16 +35,17 @@ def get_user_profile_data(user: User):
     last_name = user.last_name or ''
     full_name = f"{first_name} {last_name}".strip() or user.username
 
-    is_admin_candidate = user.is_superuser or user.is_staff or user.email == 'parthiv.dudhrejiya@vc-erp.com'
+    is_admin_candidate = user.is_superuser or user.is_staff or (user.email and user.email.lower() == PRIMARY_ADMIN_EMAIL)
     
     # Get or create UserProfile
     profile, created = UserProfile.objects.get_or_create(
         user=user,
         defaults={
             'role': 'Admin' if is_admin_candidate else 'Consultant',
-            'organization': 'VC ERP Consulting Group'
+            'organization': DEFAULT_ORGANIZATION
         }
     )
+
     
     # Auto-upgrade superuser / primary executive to Admin
     if is_admin_candidate and profile.role != 'Admin':
