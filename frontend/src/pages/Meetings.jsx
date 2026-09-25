@@ -68,25 +68,26 @@ export default function Meetings() {
       }
       if (res?.connected && Array.isArray(res.meetings)) {
         setMeetings(res.meetings);
+        if (isManual) {
+          toast?.('Microsoft Teams calendar synchronized successfully!', 'success');
+        }
       } else {
-        const listData = await meetingService.list(user?.email ? { user_email: user.email } : {});
-        setMeetings(listData || []);
-      }
-
-      if (isManual) {
-        toast?.('Microsoft Teams calendar synchronized successfully!', 'success');
+        setMeetings([]);
+        if (isManual) {
+          toast?.('Microsoft 365 Authenticator MFA authentication required to sync Teams meetings.', 'warning');
+        }
       }
     } catch (err) {
       console.error('Failed to fetch live Teams meetings', err);
-      const listData = await meetingService.list(user?.email ? { user_email: user.email } : {});
-      setMeetings(listData);
+      setMeetings([]);
       if (isManual) {
-        toast?.('Synced with local workspace meetings', 'info');
+        toast?.('Authentication required. Please connect your Microsoft 365 account.', 'warning');
       }
     } finally {
       setLoadingTeams(false);
     }
   };
+
 
   const filtered = useMemo(() => {
     if (!meetings) return [];
