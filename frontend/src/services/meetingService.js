@@ -1,8 +1,7 @@
 import { apiFetch } from './apiClient';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-
 export const meetingService = {
+
   // Fetch list of meetings with optional filters
   list: async (params = {}) => {
     const query = new URLSearchParams(params).toString();

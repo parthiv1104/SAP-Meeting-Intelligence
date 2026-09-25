@@ -11,7 +11,8 @@ import Badge from '../components/ui/Badge';
 import Avatar from '../components/ui/Avatar';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../hooks/useToast';
-import { apiFetch } from '../services/apiClient';
+import { apiFetch, API_BASE_URL } from '../services/apiClient';
+
 import { teamService } from '../services/teamService';
 
 export default function Settings() {
@@ -200,7 +201,8 @@ export default function Settings() {
             status: 'Offline / Unreachable',
             healthy: false,
             latency_ms: 0,
-            details: 'Could not reach http://localhost:8000/api/meetings/health-check/',
+            details: `Could not reach ${API_BASE_URL}/meetings/health-check/`,
+
             troubleshooting: 'Ensure backend server is running via `python manage.py runserver`.'
           }
         ],
